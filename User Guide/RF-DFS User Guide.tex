@@ -14,6 +14,7 @@
 % chktex-file 46
 
 \usepackage{geometry}
+\usepackage{calc}
 \usepackage{tikz}
 \usetikzlibrary{fit}
 \usetikzlibrary{positioning}
@@ -317,12 +318,12 @@
 \begin{document}
 \setlength{\leftmargin}{1in}        % Sets margin
 \setlength{\rightmargin}{1in}       % Sets margin
-\setlength{\voffset}{-1.2in}        % Moves header up
-\setlength{\headheight}{3.5cm}      % Defines header height
-\setlength{\textheight}{591pt}      % Extends text/body size down
-\setlength{\footskip}{60pt}         % Defines gap between body and footer
+\setlength{\headheight}{0.8in}      % Defines header height
+\setlength{\textheight}{8.25in}     % Extends text/body size down
+\setlength{\footskip}{45pt}         % Defines gap between body and footer
+\setlength{\topmargin}{(\paperheight-\textheight-\headheight-\headsep-\footskip)/2 - 1.1in} % idk copied from stackexchange/geometry ctan
 
-\thispagestyle{fancy}
+% \thispagestyle{fancy}
 \begin{center}
      \includegraphics[width=5cm]{images/NRAO Logo Badge.png} \\
      \vspace*{0.5cm}
