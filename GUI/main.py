@@ -670,10 +670,11 @@ class SpecAn(FrontEnd):
         self.Vi = Vi
         # PARENT
         spectrumFrame = parentWidget
-        spectrumFrame.rowconfigure(0, weight=1)     # Allow this row to resize
-        spectrumFrame.rowconfigure(1, weight=0)     # Prevent this row from resizing
+        spectrumFrame.rowconfigure(0, weight=0)     # Prevent this row to resize
+        spectrumFrame.rowconfigure(1, weight=1)     # Allow this row from resizing
         spectrumFrame.rowconfigure(2, weight=0)     # Prevent this row from resizing
         spectrumFrame.rowconfigure(3, weight=0)     # Prevent this row from resizing
+        spectrumFrame.rowconfigure(4, weight=0)     # Prevent this row from resizing
         spectrumFrame.columnconfigure(0, weight=1)  # Allow this column to resize
         spectrumFrame.columnconfigure(1, weight=0)  # Prevent this column from resizing
 
@@ -688,17 +689,24 @@ class SpecAn(FrontEnd):
         self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.xaxis.set_major_formatter(ticker.EngFormatter(unit=''))
         self.spectrumDisplay = FigureCanvasTkAgg(self.fig, master=spectrumFrame)
-        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=4)
+        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=5)
 
-        # MEASUREMENT COMMANDS
-        measurementTab = ttk.Notebook(spectrumFrame)
+        # MEASUREMENT TAB SELECTION
+        s = ttk.Style()
+        s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
+        tabText = ['Frequency', 'Bandwidth', 'Amplitude']
+        measurementTab = ttk.Notebook(spectrumFrame, style="Custom.TNotebook")
         self.tab1 = ttk.Frame(measurementTab)
         self.tab2 = ttk.Frame(measurementTab)
         self.tab3 = ttk.Frame(measurementTab)
-        measurementTab.add(self.tab1, sticky=NSEW, text="Freq")
-        measurementTab.add(self.tab2, sticky=NSEW, text="BW")
-        measurementTab.add(self.tab3, sticky=NSEW, text="Amp")
-        measurementTab.grid(row=0, column=1, sticky=NSEW)
+        measurementTab.add(self.tab1, sticky=NSEW)
+        measurementTab.add(self.tab2, sticky=NSEW)
+        measurementTab.add(self.tab3, sticky=NSEW)
+        measurementTab.grid(row=1, column=1, sticky=NSEW)
+        tabSelect = ttk.Combobox(spectrumFrame, values=tabText, state='readonly')
+        tabSelect.grid(row=0, column=1, sticky=NSEW)
+        tabSelect.bind("<<ComboboxSelected>>", lambda event: measurementTab.select(tabSelect.current()))    # Bind combobox selection to notebook tab selection
+
 
         # MEASUREMENT TAB 1 (FREQUENCY)
         centerFreqFrame = ttk.LabelFrame(self.tab1, text="Center Frequency")
@@ -813,11 +821,11 @@ class SpecAn(FrontEnd):
 
         # SWEEP BUTTONS
         initButton = ttk.Button(spectrumFrame, text="Initialize", command=lambda:self.setState(state.INIT))
-        initButton.grid(row=1, column=1, sticky=NSEW)
+        initButton.grid(row=2, column=1, sticky=NSEW)
         self.singleSweepButton = ttk.Button(spectrumFrame, text="Single Sweep", command=lambda:self.singleSweep())
-        self.singleSweepButton.grid(row=2, column=1, sticky=NSEW)
+        self.singleSweepButton.grid(row=3, column=1, sticky=NSEW)
         self.continuousSweepButton = ttk.Button(spectrumFrame, text="Continuous", command=lambda:self.toggleAnalyzerDisplay())
-        self.continuousSweepButton.grid(row=3, column=1, sticky=NSEW) 
+        self.continuousSweepButton.grid(row=4, column=1, sticky=NSEW) 
 
         self.bindWidgets() 
 
