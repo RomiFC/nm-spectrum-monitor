@@ -147,6 +147,12 @@ void loop() {
                 P1.printModules();
             }
             break;
+        case CHECK_24V_SL1:
+            P1.check24V(1);
+        case CHECK_24V_SL2:
+            P1.check24V(2);
+        case CHECK_24V_SL3:
+            P1.check24V(3);
         case P1_INIT:
             Serial.println("Initializing...");
             while (!P1.init()){}
