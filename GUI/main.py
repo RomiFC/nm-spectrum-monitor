@@ -179,7 +179,10 @@ AttenType       = Parameter('Auto Attenuation', ':SENS:POWER:ATT:AUTO', log=Fals
 XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
-TraceType       = Parameter('Trace Type', 'TRACE:TYPE')
+TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
+AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
+AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
+AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
 
 # real code starts here
 def isNumber(input):
@@ -653,14 +656,17 @@ class SpecAn(FrontEnd):
         self.RBW_FILTER_TYPE_VAL_ARGS = ('DB3', 'DB6', 'IMP', 'NOISE')
         self.TRACE_TYPE_VALUES = ('Clear/Write', 'Trace Average', 'Max Hold', 'Min Hold')
         self.TRACE_TYPE_VAL_ARGS = ('WRIT', 'AVER', 'MAXH', 'MINH')
+        self.AVG_TYPE_VALUES = ('Log-Power (Video)', 'Power (RMS)', 'Voltage')
+        self.AVG_TYPE_VAL_ARGS = ('LOG', 'RMS', 'SCALAR')
         # TKINTER VARIABLES
-        global tkSweepType, tkSpanType, tkRbwType, tkVbwType, tkBwRatioType, tkAttenType
+        global tkSweepType, tkSpanType, tkRbwType, tkVbwType, tkBwRatioType, tkAttenType, tkAvgType
         tkSweepType = BooleanVar()
         tkSpanType = BooleanVar()
         tkRbwType = BooleanVar()
         tkVbwType = BooleanVar()
         tkBwRatioType = BooleanVar()
         tkAttenType = BooleanVar()
+        tkAvgType = BooleanVar()
         # PLOT PARAMETERS
         self.color = '#1f77b4'
         self.marker = None
@@ -823,6 +829,26 @@ class SpecAn(FrontEnd):
         self.traceTypeCombo = ttk.Combobox(traceTypeFrame, values=self.TRACE_TYPE_VALUES)
         self.traceTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
 
+        # # Possibly needs a firmware update? N9040B doesn't recognize :AVER:COUN:CURR? for some reason
+        # currAvgCountFrame = ttk.LabelFrame(self.tab4, text='Current Avg/Hold') # current count is handled by the loop thread, not the typical setAnalyzerValue thread, also not a Parameter
+        # currAvgCountFrame.grid(row=1, column=0, sticky=NSEW)
+        # self.currAvgCountEntry = ttk.Entry(currAvgCountFrame, state="disabled")
+        # self.currAvgCountEntry.pack(anchor=W, expand=True, fill=BOTH)
+
+        avgCountFrame = ttk.LabelFrame(self.tab4, text='Average/Hold Count')
+        avgCountFrame.grid(row=2, column=0, sticky=NSEW)
+        self.avgCountEntry = ttk.Entry(avgCountFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.avgCountEntry.pack(anchor=W, expand=True, fill=BOTH)
+
+        avgTypeFrame = ttk.LabelFrame(self.tab4, text='Average Type')
+        avgTypeFrame.grid(row=3, column=0, sticky=NSEW)
+        self.avgTypeCombo = ttk.Combobox(avgTypeFrame, values=self.AVG_TYPE_VALUES)
+        self.avgTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
+        self.avgAutoButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Auto", value=AUTO)
+        self.avgAutoButton.pack(anchor=W, expand=True, fill=BOTH)
+        self.avgManButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Manual", value=MANUAL)
+        self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
+
         # SWEEP BUTTONS
         initButton = ttk.Button(spectrumFrame, text="Initialize", command=self.initAnalyzer)
         initButton.grid(row=2, column=1, sticky=NSEW)
@@ -858,6 +884,9 @@ class SpecAn(FrontEnd):
         AttenType.update(widget=tkAttenType)
         YAxisUnit.update(widget=self.unitPowerEntry)
         TraceType.update(widget=self.traceTypeCombo)
+        AvgType.update(widget=self.avgTypeCombo)
+        AvgAutoMan.update(widget=tkAvgType)
+        AvgHoldCount.update(widget=self.avgCountEntry)
 
         # Generate thread to handle live data plot in background
         self.analyzerControlLoopThread = threading.Thread(target=self.analyzerControlLoop, daemon=TRUE)
@@ -880,6 +909,7 @@ class SpecAn(FrontEnd):
         self.yScaleEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yscale = self.yScaleEntry.get()))
         self.numDivEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, numdiv = self.numDivEntry.get()))
         self.attenEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, atten = self.attenEntry.get()))
+        self.avgCountEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, avgcount = self.avgCountEntry.get()))
 
         self.sweepAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(sweeptype=AUTO))
         self.sweepManButton.configure(command = lambda: self.setAnalyzerThreadHandler(sweeptype=MANUAL))
@@ -897,6 +927,9 @@ class SpecAn(FrontEnd):
         self.attenAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(attentype=AUTO))
         self.attenManButton.configure(command = lambda: self.setAnalyzerThreadHandler(attentype=MANUAL))
         self.traceTypeCombo.bind("<<ComboboxSelected>>", lambda event: self.setAnalyzerThreadHandler(event, tracetype = self.traceTypeCombo.current()))
+        self.avgTypeCombo.bind("<<ComboboxSelected>>", lambda event: self.setAnalyzerThreadHandler(event, avgtype = self.avgTypeCombo.current()))
+        self.avgAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(avgautoman=AUTO))
+        self.avgManButton.configure(command = lambda: self.setAnalyzerThreadHandler(avgautoman=MANUAL))
 
     def toggleInputs(self, action):
         """Enables or disables the widgets in _frames and _widgets along with all of their children.
@@ -904,7 +937,7 @@ class SpecAn(FrontEnd):
         Args:
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
-        _frames = (self.tab1, self.tab2, self.tab3)
+        _frames = (self.tab1, self.tab2, self.tab3, self.tab4)
         _widgets = (self.singleSweepButton, self.continuousSweepButton, self.restartButton)
 
         if action == ENABLE:
@@ -957,7 +990,7 @@ class SpecAn(FrontEnd):
         thread = threading.Thread(target=self.setAnalyzerValue, kwargs=_dict)
         thread.start()
 
-    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, tracetype=None):
+    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
         """Issues command to spectrum analyzer with the value of kwarg as the argument and queries for widget values. If the value is None or if there are no kwargs, query the spectrum analyzer to set widget values instead.
         
         Args:
@@ -981,6 +1014,9 @@ class SpecAn(FrontEnd):
             rbwfiltertype (int, optional): Index of the combobox widget tied to RBW_FILTER_TYPE_VAL_ARGS. Defaults to None.
             attentype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
             tracetype (int, optional): Index of the combobox widget tied to TRACE_TYPE_VAL_ARGS. Defaults to None.
+            avgcount (int, optional): Average/max hold/min hold count. Defaults to None.
+            avgtype (int, optional): Index of the combobox widget tied to AVG_TYPE_VAL_ARGS. Defaults to None.
+            avgautoman (bool, optional): 1 for auto, 0 for manual. Defaults to None.
         """
         # TODO: Make sure all commands have full functionality
         global visaLock
@@ -1011,6 +1047,10 @@ class SpecAn(FrontEnd):
         YAxisUnit.update(arg=None)
         if tracetype is not None:
             TraceType.update(arg=self.TRACE_TYPE_VAL_ARGS[tracetype])
+        AvgHoldCount.update(arg=avgcount)
+        if avgtype is not None:
+            AvgType.update(arg=self.AVG_TYPE_VAL_ARGS[avgtype])
+        AvgAutoMan.update(arg=avgautoman)
 
         # Sort the list so dictionaries with 'arg': None are placed (and executed) after write commands
         for index in range(len(_list)):
@@ -1041,26 +1081,29 @@ class SpecAn(FrontEnd):
         return
 
     def initAnalyzer(self):
-        if self.Vi.isSessionOpen() == FALSE:
-            logging.error(f"Session to the analyzer is not open. Set up connection with Options > Configure..., then reinitialize.")
-            return
-        try:
-            visaLock.acquire()
-            self.Vi.resetAnalyzerState()
-            self.Vi.queryPowerUpErrors()
-            self.Vi.testBufferSize()
-            # Set widget values
-            self.setAnalyzerValue()
-            visaLock.release()
-        except Exception as e:
-            logging.error(f'{type(e).__name__}: {e}')
+        def init():
+            if self.Vi.isSessionOpen() == FALSE:
+                logging.error(f"Session to the analyzer is not open. Set up connection with Options > Configure..., then reinitialize.")
+                return
             try:
-                self.Vi.queryErrors()
+                visaLock.acquire()
+                self.Vi.resetAnalyzerState()
+                self.Vi.queryPowerUpErrors()
+                self.Vi.testBufferSize()
+                # Set widget values
+                self.setAnalyzerValue()
+                visaLock.release()
             except Exception as e:
-                # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
-                pass
-            visaLock.release()
-        self.toggleInputs(ENABLE)
+                logging.error(f'{type(e).__name__}: {e}')
+                try:
+                    self.Vi.queryErrors()
+                except Exception as e:
+                    # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
+                    pass
+                visaLock.release()
+            self.toggleInputs(ENABLE)
+        thread = threading.Thread(target=init)
+        thread.start()
 
     def analyzerControlLoop(self):
         # TODO deprecate but maybe keep some of the osr checker and visa session checker code
@@ -1144,6 +1187,8 @@ class SpecAn(FrontEnd):
                 stopFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:STOP?")[0])
                 sweepPoints = int(self.Vi.openRsrc.query_ascii_values(":SENS:SWEEP:POINTS?")[0])
                 yAxis = self.Vi.openRsrc.query_ascii_values(":TRACE:DATA? TRACE1")
+                # currAvgCount = self.Vi.openRsrc.query_ascii_values(":SENS:AVER:COUNT:CURR?")
+                # clearAndSetWidget(self.currAvgCountEntry, currAvgCount)
                 buffer = True
                 visaLock.release()
             except Exception as e:
