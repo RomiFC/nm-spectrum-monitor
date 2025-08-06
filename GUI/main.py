@@ -183,6 +183,7 @@ TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
 AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
+SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
 
 # real code starts here
 def isNumber(input):
@@ -701,16 +702,18 @@ class SpecAn(FrontEnd):
         # MEASUREMENT TAB SELECTION
         s = ttk.Style()
         s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
-        tabText = ['Frequency', 'Bandwidth', 'Amplitude', 'Trace']
+        tabText = ['Frequency', 'Bandwidth', 'Amplitude', 'Sweep', 'Trace']
         measurementTab = ttk.Notebook(spectrumFrame, style="Custom.TNotebook")
         self.tab1 = ttk.Frame(measurementTab)
         self.tab2 = ttk.Frame(measurementTab)
         self.tab3 = ttk.Frame(measurementTab)
         self.tab4 = ttk.Frame(measurementTab)
+        self.tab5 = ttk.Frame(measurementTab)
         measurementTab.add(self.tab1, sticky=NSEW)
         measurementTab.add(self.tab2, sticky=NSEW)
         measurementTab.add(self.tab3, sticky=NSEW)
         measurementTab.add(self.tab4, sticky=NSEW)
+        measurementTab.add(self.tab5, sticky=NSEW)
         measurementTab.grid(row=1, column=1, sticky=NSEW)
         tabSelect = ttk.Combobox(spectrumFrame, values=tabText, state='readonly')
         tabSelect.current(0)
@@ -744,15 +747,6 @@ class SpecAn(FrontEnd):
         stopFreqFrame.grid(row=3, column=0, sticky=NSEW)
         self.stopFreqEntry = ttk.Entry(stopFreqFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.stopFreqEntry.pack(expand=True, fill=BOTH)
-
-        sweepTimeFrame = ttk.LabelFrame(self.tab1, text="Sweep Time")
-        sweepTimeFrame.grid(row=4, column=0, sticky=NSEW)
-        self.sweepTimeEntry = ttk.Entry(sweepTimeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
-        self.sweepTimeEntry.pack(expand=True, fill=BOTH)
-        self.sweepAutoButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Auto", value=AUTO)
-        self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
-        self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # MEASUREMENT TAB 2 (BANDWIDTH)
         rbwFrame = ttk.LabelFrame(self.tab2, text="Res BW")
@@ -822,8 +816,23 @@ class SpecAn(FrontEnd):
         self.unitPowerEntry = ttk.Entry(unitPowerFrame, state="disabled")
         self.unitPowerEntry.pack(expand=True, fill=BOTH)
 
-        # MEASUREMENT TAB 4 (TRACE)
-        traceTypeFrame = ttk.LabelFrame(self.tab4, text='Trace Type')
+        # MEASUREMENT TAB 4 (SWEEP)
+        sweepPointsFrame = ttk.LabelFrame(self.tab4, text="Points")
+        sweepPointsFrame.grid(row=0, column=0, sticky=NSEW)
+        self.sweepPointsEntry = ttk.Entry(sweepPointsFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.sweepPointsEntry.pack(expand=True, fill=BOTH)
+
+        sweepTimeFrame = ttk.LabelFrame(self.tab4, text="Sweep Time")
+        sweepTimeFrame.grid(row=1, column=0, sticky=NSEW)
+        self.sweepTimeEntry = ttk.Entry(sweepTimeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.sweepTimeEntry.pack(expand=True, fill=BOTH)
+        self.sweepAutoButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Auto", value=AUTO)
+        self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
+        self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
+        self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
+
+        # MEASUREMENT TAB 5 (TRACE)
+        traceTypeFrame = ttk.LabelFrame(self.tab5, text='Trace Type')
         traceTypeFrame.grid(row=0, column=0, sticky=NSEW)
         self.traceTypeCombo = ttk.Combobox(traceTypeFrame, values=self.TRACE_TYPE_VALUES)
         self.traceTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
@@ -834,12 +843,12 @@ class SpecAn(FrontEnd):
         # self.currAvgCountEntry = ttk.Entry(currAvgCountFrame, state="disabled")
         # self.currAvgCountEntry.pack(anchor=W, expand=True, fill=BOTH)
 
-        avgCountFrame = ttk.LabelFrame(self.tab4, text='Average/Hold Count')
+        avgCountFrame = ttk.LabelFrame(self.tab5, text='Average/Hold Count')
         avgCountFrame.grid(row=2, column=0, sticky=NSEW)
         self.avgCountEntry = ttk.Entry(avgCountFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.avgCountEntry.pack(anchor=W, expand=True, fill=BOTH)
 
-        avgTypeFrame = ttk.LabelFrame(self.tab4, text='Average Type')
+        avgTypeFrame = ttk.LabelFrame(self.tab5, text='Average Type')
         avgTypeFrame.grid(row=3, column=0, sticky=NSEW)
         self.avgTypeCombo = ttk.Combobox(avgTypeFrame, values=self.AVG_TYPE_VALUES)
         self.avgTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
@@ -880,6 +889,7 @@ class SpecAn(FrontEnd):
         RbwFilterType.update(widget=self.rbwFilterTypeCombo)
         AttenType.update(widget=tkAttenType)
         YAxisUnit.update(widget=self.unitPowerEntry)
+        SweepPoints.update(widget=self.sweepPointsEntry)
         TraceType.update(widget=self.traceTypeCombo)
         AvgType.update(widget=self.avgTypeCombo)
         AvgAutoMan.update(widget=tkAvgType)
@@ -906,6 +916,7 @@ class SpecAn(FrontEnd):
         self.yScaleEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yscale = self.yScaleEntry.get()))
         self.numDivEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, numdiv = self.numDivEntry.get()))
         self.attenEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, atten = self.attenEntry.get()))
+        self.sweepPointsEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, sweeppoints = self.sweepPointsEntry.get()))
         self.avgCountEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, avgcount = self.avgCountEntry.get()))
 
         self.sweepAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(sweeptype=AUTO))
@@ -1003,7 +1014,7 @@ class SpecAn(FrontEnd):
         thread = threading.Thread(target=self.setAnalyzerValue, kwargs=_dict)
         thread.start()
 
-    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
+    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, sweeppoints=None, tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
         """Issues command to spectrum analyzer with the value of kwarg as the argument and queries for widget values. If the value is None or if there are no kwargs, query the spectrum analyzer to set widget values instead.
         
         Args:
@@ -1016,9 +1027,9 @@ class SpecAn(FrontEnd):
             vbw (float, optional): Video bandwidth. Defaults to None.
             bwratio (float, optional): RBW:VBW ratio. Defaults to None.
             ref (float, optional): Reference level in dBm. Defaults to None.
-            numdiv (float, optional): Number of yscale divisions. Defaults to None.
+            numdiv (float, optional): Number of yscale divisions. Defaults to None. Converted to int by device.
             yscale (float, optional): Scale per division in dB. Defaults to None.
-            atten (float, optional): Mechanical attenuation in dB. Defaults to None.
+            atten (float, optional): Mechanical attenuation in dB. Defaults to None. Converted to int by device.
             spantype (bool, optional): 1 for swept span, 0 for zero span (time domain). Defaults to None.
             rbwtype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
             vbwtype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
@@ -1026,8 +1037,9 @@ class SpecAn(FrontEnd):
             rbwfiltershape (int, optional): Index of the combobox widget tied to RBW_FILTER_SHAPE_VAL_ARGS. Defaults to None.
             rbwfiltertype (int, optional): Index of the combobox widget tied to RBW_FILTER_TYPE_VAL_ARGS. Defaults to None.
             attentype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
+            sweeppoints (float, optional): Number of points to sweep. Defaults to None. Converted to int by device.
             tracetype (int, optional): Index of the combobox widget tied to TRACE_TYPE_VAL_ARGS. Defaults to None.
-            avgcount (int, optional): Average/max hold/min hold count. Defaults to None.
+            avgcount (float, optional): Average/max hold/min hold count. Defaults to None. Converted to int by device.
             avgtype (int, optional): Index of the combobox widget tied to AVG_TYPE_VAL_ARGS. Defaults to None.
             avgautoman (bool, optional): 1 for auto, 0 for manual. Defaults to None.
         """
@@ -1058,6 +1070,7 @@ class SpecAn(FrontEnd):
             RbwFilterType.update(arg=self.RBW_FILTER_TYPE_VAL_ARGS[rbwfiltertype])
         AttenType.update(arg=attentype)
         YAxisUnit.update(arg=None)
+        SweepPoints.update(arg=sweeppoints)
         if tracetype is not None:
             TraceType.update(arg=self.TRACE_TYPE_VAL_ARGS[tracetype])
         AvgHoldCount.update(arg=avgcount)
