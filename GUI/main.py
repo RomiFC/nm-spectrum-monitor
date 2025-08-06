@@ -662,7 +662,7 @@ class SpecAn(FrontEnd):
         tkBwRatioType = BooleanVar()
         tkAttenType = BooleanVar()
         # PLOT PARAMETERS
-        self.color = None
+        self.color = '#1f77b4'
         self.marker = None
         self.linestyle = None
         self.linewidth = None
@@ -1130,7 +1130,6 @@ class SpecAn(FrontEnd):
             except Exception as e:
                 visaLock.release()
                 buffer = None
-                logging.fatal(f'{type(e).__name__}: {e}')
             with specPlotLock:
                 if buffer:
                     try:
@@ -1145,8 +1144,8 @@ class SpecAn(FrontEnd):
                         self.ax.grid(visible=True)
                         self.spectrumDisplay.draw()
                     except Exception as e:
-                        logging.warning(f'{type(e).__name__}: {e}')
-            time.sleep(1)
+                        pass
+            time.sleep(ANALYZER_REFRESH_DELAY)
             
 
     def toggleAnalyzerDisplay(self):
