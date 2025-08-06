@@ -682,7 +682,6 @@ class SpecAn(FrontEnd):
         spectrumFrame.rowconfigure(2, weight=0)     # Prevent this row from resizing
         spectrumFrame.rowconfigure(3, weight=0)     # Prevent this row from resizing
         spectrumFrame.rowconfigure(4, weight=0)     # Prevent this row from resizing
-        spectrumFrame.rowconfigure(5, weight=0)     # Prevent this row from resizing
         spectrumFrame.columnconfigure(0, weight=1)  # Allow this column to resize
         spectrumFrame.columnconfigure(1, weight=0)  # Prevent this column from resizing
 
@@ -697,7 +696,7 @@ class SpecAn(FrontEnd):
         self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.xaxis.set_major_formatter(ticker.EngFormatter(unit=''))
         self.spectrumDisplay = FigureCanvasTkAgg(self.fig, master=spectrumFrame)
-        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=6)
+        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=5)
 
         # MEASUREMENT TAB SELECTION
         s = ttk.Style()
@@ -852,12 +851,10 @@ class SpecAn(FrontEnd):
         # SWEEP BUTTONS
         initButton = ttk.Button(spectrumFrame, text="Initialize", command=self.initAnalyzer)
         initButton.grid(row=2, column=1, sticky=NSEW)
-        self.singleSweepButton = ttk.Button(spectrumFrame, text="Single Sweep", command=lambda:self.Vi.openRsrc.write("INIT:CONT 0"))
-        self.singleSweepButton.grid(row=3, column=1, sticky=NSEW)
-        self.continuousSweepButton = ttk.Button(spectrumFrame, text="Continuous", command=lambda:self.Vi.openRsrc.write("INIT:CONT 1"))
-        self.continuousSweepButton.grid(row=4, column=1, sticky=NSEW)
-        self.restartButton = ttk.Button(spectrumFrame, text='Restart', command=lambda:self.Vi.openRsrc.write("INIT:IMM"))
-        self.restartButton.grid(row=5, column=1, sticky=NSEW)
+        self.sweepButton = ttk.Button(spectrumFrame, text="Single/Cont", command=lambda:self.sweepButtonHandler(action='toggle'))
+        self.sweepButton.grid(row=3, column=1, sticky=NSEW)
+        self.restartButton = ttk.Button(spectrumFrame, text='Restart', command=lambda:self.sweepButtonHandler(action='restart'))
+        self.restartButton.grid(row=4, column=1, sticky=NSEW)
 
         self.bindWidgets() 
 
@@ -938,7 +935,7 @@ class SpecAn(FrontEnd):
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
         _frames = (self.tab1, self.tab2, self.tab3, self.tab4)
-        _widgets = (self.singleSweepButton, self.continuousSweepButton, self.restartButton)
+        _widgets = (self.sweepButton, self.restartButton)
 
         if action == ENABLE:
             for frame in _frames:
@@ -950,6 +947,22 @@ class SpecAn(FrontEnd):
                 disableChildren(frame)
             for widget in _widgets:
                 widget.configure(state='disable')
+
+    def sweepButtonHandler(self, action):
+        """Issues scpi commands for the Single/Continuous and Restart buttons with resource lock.
+
+        Args:
+            action (string): Can be 'toggle', or 'restart'
+        """
+        with visaLock:
+            isContinuous = bool(self.Vi.openRsrc.query_ascii_values("INIT:CONT?")[0])
+            if action == 'toggle':
+                if isContinuous:
+                    self.Vi.openRsrc.write("INIT:CONT 0")
+                else:
+                    self.Vi.openRsrc.write("INIT:CONT 1")
+            elif action == 'restart':
+                self.Vi.openRsrc.write("INIT:IMM")
 
     def setAnalyzerPlotLimits(self, **kwargs):
         """Sets self.ax limits to parameters passed in **kwargs if they exist. If not, gets relevant widget values to set limits.
