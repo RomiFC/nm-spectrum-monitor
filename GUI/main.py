@@ -42,6 +42,7 @@ from tktimepicker import SpinTimePickerModern, constants
 # CONSTANTS
 IDLE_DELAY = 1.0
 ANALYZER_LOOP_DELAY = 0.5
+ANALYZER_REFRESH_DELAY = 0.3
 MOTOR_LOOP_DELAY = 0.5
 STATUS_MONITOR_DELAY = 0.2
 RETURN_ERROR = 1
@@ -694,14 +695,16 @@ class SpecAn(FrontEnd):
         # MEASUREMENT TAB SELECTION
         s = ttk.Style()
         s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
-        tabText = ['Frequency', 'Bandwidth', 'Amplitude']
+        tabText = ['Frequency', 'Bandwidth', 'Amplitude', 'Trace']
         measurementTab = ttk.Notebook(spectrumFrame, style="Custom.TNotebook")
         self.tab1 = ttk.Frame(measurementTab)
         self.tab2 = ttk.Frame(measurementTab)
         self.tab3 = ttk.Frame(measurementTab)
+        self.tab4 = ttk.Frame(measurementTab)
         measurementTab.add(self.tab1, sticky=NSEW)
         measurementTab.add(self.tab2, sticky=NSEW)
         measurementTab.add(self.tab3, sticky=NSEW)
+        measurementTab.add(self.tab4, sticky=NSEW)
         measurementTab.grid(row=1, column=1, sticky=NSEW)
         tabSelect = ttk.Combobox(spectrumFrame, values=tabText, state='readonly')
         tabSelect.grid(row=0, column=1, sticky=NSEW)
@@ -743,8 +746,6 @@ class SpecAn(FrontEnd):
         self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
         self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
         self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
-        
-
 
         # MEASUREMENT TAB 2 (BANDWIDTH)
         rbwFrame = ttk.LabelFrame(self.tab2, text="Res BW")
@@ -814,8 +815,9 @@ class SpecAn(FrontEnd):
         self.unitPowerEntry = ttk.Entry(unitPowerFrame, state="disabled")
         self.unitPowerEntry.pack(expand=True, fill=BOTH)
 
-        traceTypeFrame = ttk.LabelFrame(self.tab3, text='Trace Type')
-        traceTypeFrame.grid(row=5, column=0, sticky=NSEW)
+        # MEASUREMENT TAB 4 (TRACE)
+        traceTypeFrame = ttk.LabelFrame(self.tab4, text='Trace Type')
+        traceTypeFrame.grid(row=0, column=0, sticky=NSEW)
         self.traceTypeCombo = ttk.Combobox(traceTypeFrame, values=self.TRACE_TYPE_VALUES)
         self.traceTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
 
@@ -854,8 +856,8 @@ class SpecAn(FrontEnd):
         TraceType.update(widget=self.traceTypeCombo)
 
         # Generate thread to handle live data plot in background
-        analyzerLoop = threading.Thread(target=self.analyzerDisplayLoop, daemon=True)
-        analyzerLoop.start()
+        self.analyzerControlLoopThread = threading.Thread(target=self.analyzerControlLoop, daemon=TRUE)
+        self.analyzerDisplayLoopthread = threading.Thread(target=self.analyzerDisplayLoop, daemon=TRUE)
 
     def bindWidgets(self):
         """Binds tkinter events to the widgets' respective commands.
@@ -1040,8 +1042,8 @@ class SpecAn(FrontEnd):
         """
         self.loopState = val
 
-    def analyzerDisplayLoop(self):
-        """Main spectrum analyzer state machine. Initializes spectrum analyzer connection and plots sweeps in the matplotlib canvas.
+    def analyzerControlLoop(self):
+        """Main spectrum analyzer state machine. Initializes spectrum analyzer connection and issues sweeps commands to the device.
         """
         global visaLock, specPlotLock
 
@@ -1099,15 +1101,7 @@ class SpecAn(FrontEnd):
                             self.contSweepFlag = False
                             continue
                         try:
-                            with specPlotLock:
-                                if 'lines' in locals():     # Remove previous plot if it exists
-                                    lines.pop(0).remove()
-                                buffer = self.Vi.openRsrc.query_ascii_values(":READ:SAN?")
-                                xAxis = buffer[::2]
-                                yAxis = buffer[1::2]
-                                lines = self.ax.plot(xAxis, yAxis, color=self.color, marker=self.marker, linestyle=self.linestyle, linewidth=self.linewidth, markersize=self.markersize)
-                                self.ax.grid(visible=True)
-                                self.spectrumDisplay.draw()
+                            self.Vi.openRsrc.write(":INIT:SAN")
                         except Exception as e:
                             logging.fatal(f'{type(e).__name__}: {e}')
                             self.contSweepFlag = False
@@ -1118,8 +1112,45 @@ class SpecAn(FrontEnd):
                         # Prevent this thread from taking up too much utilization
                         time.sleep(IDLE_DELAY)
 
+    def analyzerDisplayLoop(self):
+        """Spectrum analyzer display loop. Constantly fetches the spectrum analyzer xy values and plots it in the matplotlib canvas.
+        """
+        # global visaLock, specPlotLock
+
+        while TRUE:
+            try:
+                visaLock.acquire()
+                # :FETCH:SAN? doesn't fetch if a sweep is in progress, this big ole mess is a workaround for that
+                startFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:START?")[0])
+                stopFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:STOP?")[0])
+                sweepPoints = int(self.Vi.openRsrc.query_ascii_values(":SENS:SWEEP:POINTS?")[0])
+                yAxis = self.Vi.openRsrc.query_ascii_values(":TRACE:DATA? TRACE1")
+                buffer = True
+                visaLock.release()
+            except Exception as e:
+                visaLock.release()
+                buffer = None
+                logging.fatal(f'{type(e).__name__}: {e}')
+            with specPlotLock:
+                if buffer:
+                    try:
+                        if 'lines' in locals():     # Remove previous plot if it exists
+                            lines.pop(0).remove()
+                        stepSize = (stopFreq - startFreq) / (sweepPoints - 1)
+                        xAxis = np.zeros(sweepPoints)
+                        xAxis[0] = startFreq
+                        for index in range(sweepPoints - 1):
+                            xAxis[index + 1] = xAxis[index] + stepSize
+                        lines = self.ax.plot(xAxis, yAxis, color=self.color, marker=self.marker, linestyle=self.linestyle, linewidth=self.linewidth, markersize=self.markersize)
+                        self.ax.grid(visible=True)
+                        self.spectrumDisplay.draw()
+                    except Exception as e:
+                        logging.warning(f'{type(e).__name__}: {e}')
+            time.sleep(1)
+            
+
     def toggleAnalyzerDisplay(self):
-        """sets contSweepFlag != contSweepFlag to control analyzerDisplayLoop()
+        """sets contSweepFlag != contSweepFlag to control analyzerControlLoop()
         """
         if self.Vi.isSessionOpen() == FALSE:
             logging.error("Cannot initiate sweep, session to the analyzer is not open.")
@@ -1134,7 +1165,7 @@ class SpecAn(FrontEnd):
             self.contSweepFlag = False
 
     def singleSweep(self):
-        """Sets singleSweepFlag TRUE and contSweepFlag FALSE to control analyzerDisplayLoop()
+        """Sets singleSweepFlag TRUE and contSweepFlag FALSE to control analyzerControlLoop()
         """
         if self.Vi.isSessionOpen() == FALSE:
             logging.error("Cannot initiate sweep, session to the analyzer is not open.")
@@ -1924,9 +1955,13 @@ Front_End = FrontEnd(root, Vi, Motor, Relay)
 Spec_An = SpecAn(Vi, Front_End.spectrumFrame)
 Azi_Ele = AziElePlot(Motor, Front_End.directionFrame)
 
+# Threading stuff
 statusMonitorThread = threading.Thread(target=statusMonitor, args = (Front_End, Vi, Motor, Relay, Azi_Ele), daemon=True)
 statusMonitorThread.start()
 automation.scheduler.start(paused=True)
+Spec_An.analyzerControlLoopThread.start()
+Spec_An.analyzerDisplayLoopthread.start()
+
 
 # Bind FrontEnd buttons to methods
 Front_End.standbyButton.configure(command = lambda: Azi_Ele.setState(state.IDLE))
