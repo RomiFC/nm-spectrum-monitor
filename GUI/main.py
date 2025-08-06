@@ -676,6 +676,7 @@ class SpecAn(FrontEnd):
         spectrumFrame.rowconfigure(2, weight=0)     # Prevent this row from resizing
         spectrumFrame.rowconfigure(3, weight=0)     # Prevent this row from resizing
         spectrumFrame.rowconfigure(4, weight=0)     # Prevent this row from resizing
+        spectrumFrame.rowconfigure(5, weight=0)     # Prevent this row from resizing
         spectrumFrame.columnconfigure(0, weight=1)  # Allow this column to resize
         spectrumFrame.columnconfigure(1, weight=0)  # Prevent this column from resizing
 
@@ -690,7 +691,7 @@ class SpecAn(FrontEnd):
         self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.xaxis.set_major_formatter(ticker.EngFormatter(unit=''))
         self.spectrumDisplay = FigureCanvasTkAgg(self.fig, master=spectrumFrame)
-        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=5)
+        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=6)
 
         # MEASUREMENT TAB SELECTION
         s = ttk.Style()
@@ -707,6 +708,7 @@ class SpecAn(FrontEnd):
         measurementTab.add(self.tab4, sticky=NSEW)
         measurementTab.grid(row=1, column=1, sticky=NSEW)
         tabSelect = ttk.Combobox(spectrumFrame, values=tabText, state='readonly')
+        tabSelect.current(0)
         tabSelect.grid(row=0, column=1, sticky=NSEW)
         tabSelect.bind("<<ComboboxSelected>>", lambda event: measurementTab.select(tabSelect.current()))    # Bind combobox selection to notebook tab selection
 
@@ -822,12 +824,14 @@ class SpecAn(FrontEnd):
         self.traceTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
 
         # SWEEP BUTTONS
-        initButton = ttk.Button(spectrumFrame, text="Initialize", command=lambda:self.setState(state.INIT))
+        initButton = ttk.Button(spectrumFrame, text="Initialize", command=self.initAnalyzer)
         initButton.grid(row=2, column=1, sticky=NSEW)
-        self.singleSweepButton = ttk.Button(spectrumFrame, text="Single Sweep", command=lambda:self.singleSweep())
+        self.singleSweepButton = ttk.Button(spectrumFrame, text="Single Sweep", command=lambda:self.Vi.openRsrc.write("INIT:CONT 0"))
         self.singleSweepButton.grid(row=3, column=1, sticky=NSEW)
-        self.continuousSweepButton = ttk.Button(spectrumFrame, text="Continuous", command=lambda:self.toggleAnalyzerDisplay())
-        self.continuousSweepButton.grid(row=4, column=1, sticky=NSEW) 
+        self.continuousSweepButton = ttk.Button(spectrumFrame, text="Continuous", command=lambda:self.Vi.openRsrc.write("INIT:CONT 1"))
+        self.continuousSweepButton.grid(row=4, column=1, sticky=NSEW)
+        self.restartButton = ttk.Button(spectrumFrame, text='Restart', command=lambda:self.Vi.openRsrc.write("INIT:IMM"))
+        self.restartButton.grid(row=5, column=1, sticky=NSEW)
 
         self.bindWidgets() 
 
@@ -858,6 +862,8 @@ class SpecAn(FrontEnd):
         # Generate thread to handle live data plot in background
         self.analyzerControlLoopThread = threading.Thread(target=self.analyzerControlLoop, daemon=TRUE)
         self.analyzerDisplayLoopthread = threading.Thread(target=self.analyzerDisplayLoop, daemon=TRUE)
+
+        self.toggleInputs(DISABLE)
 
     def bindWidgets(self):
         """Binds tkinter events to the widgets' respective commands.
@@ -899,7 +905,7 @@ class SpecAn(FrontEnd):
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
         _frames = (self.tab1, self.tab2, self.tab3)
-        _widgets = (self.singleSweepButton, self.continuousSweepButton)
+        _widgets = (self.singleSweepButton, self.continuousSweepButton, self.restartButton)
 
         if action == ENABLE:
             for frame in _frames:
@@ -1033,16 +1039,31 @@ class SpecAn(FrontEnd):
         with specPlotLock:
             self.setAnalyzerPlotLimits()
         return
-    
-    def setState(self, val):
-        """Sets self.loopState to val.
 
-        Args:
-            val (int): Should be a constant in class State (state.IDLE, state.INIT, state.LOOP).
-        """
-        self.loopState = val
+    def initAnalyzer(self):
+        if self.Vi.isSessionOpen() == FALSE:
+            logging.error(f"Session to the analyzer is not open. Set up connection with Options > Configure..., then reinitialize.")
+            return
+        try:
+            visaLock.acquire()
+            self.Vi.resetAnalyzerState()
+            self.Vi.queryPowerUpErrors()
+            self.Vi.testBufferSize()
+            # Set widget values
+            self.setAnalyzerValue()
+            visaLock.release()
+        except Exception as e:
+            logging.error(f'{type(e).__name__}: {e}')
+            try:
+                self.Vi.queryErrors()
+            except Exception as e:
+                # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
+                pass
+            visaLock.release()
+        self.toggleInputs(ENABLE)
 
     def analyzerControlLoop(self):
+        # TODO deprecate but maybe keep some of the osr checker and visa session checker code
         """Main spectrum analyzer state machine. Initializes spectrum analyzer connection and issues sweeps commands to the device.
         """
         global visaLock, specPlotLock
@@ -1115,8 +1136,6 @@ class SpecAn(FrontEnd):
     def analyzerDisplayLoop(self):
         """Spectrum analyzer display loop. Constantly fetches the spectrum analyzer xy values and plots it in the matplotlib canvas.
         """
-        # global visaLock, specPlotLock
-
         while TRUE:
             try:
                 visaLock.acquire()
@@ -1146,33 +1165,6 @@ class SpecAn(FrontEnd):
                     except Exception as e:
                         pass
             time.sleep(ANALYZER_REFRESH_DELAY)
-            
-
-    def toggleAnalyzerDisplay(self):
-        """sets contSweepFlag != contSweepFlag to control analyzerControlLoop()
-        """
-        if self.Vi.isSessionOpen() == FALSE:
-            logging.error("Cannot initiate sweep, session to the analyzer is not open.")
-            self.contSweepFlag = False
-            return
-        
-        if not self.contSweepFlag:
-            logging.info("Starting spectrum display.")
-            self.contSweepFlag = True
-        else:
-            logging.info("Disabling spectrum display.")
-            self.contSweepFlag = False
-
-    def singleSweep(self):
-        """Sets singleSweepFlag TRUE and contSweepFlag FALSE to control analyzerControlLoop()
-        """
-        if self.Vi.isSessionOpen() == FALSE:
-            logging.error("Cannot initiate sweep, session to the analyzer is not open.")
-            self.contSweepFlag = False
-            return
-        
-        self.contSweepFlag = False
-        self.singleSweepFlag = True
 
     def setPlotThreadHandler(self, color=None, marker=None, linestyle=None, linewidth=None, markersize=None):
         """Generates thread to issue setPlotParam.
@@ -1958,7 +1950,6 @@ Azi_Ele = AziElePlot(Motor, Front_End.directionFrame)
 statusMonitorThread = threading.Thread(target=statusMonitor, args = (Front_End, Vi, Motor, Relay, Azi_Ele), daemon=True)
 statusMonitorThread.start()
 automation.scheduler.start(paused=True)
-Spec_An.analyzerControlLoopThread.start()
 Spec_An.analyzerDisplayLoopthread.start()
 
 
