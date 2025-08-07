@@ -411,8 +411,13 @@
 \section{Introduction}
 
 \subsection{What is the RF-DFS and RF-EMS?}
-% copy from readme/wiki/plan or something
-The Radio Frequency - Direction Finding System and Environmental Monitoring System are tools utilized by the NRAO-NM Interference Protection Group to identify and locate RF interference at the Very Large Array. The former is a 3-meter dish antenna with azimuth and elevation drives whereas the latter is a 50-foot tower with an omnidirectional club antenna. Both are connected to the RFI shack and controlled by a Python front end. This interface allows a user to control RF switching between both antennas and log data through a spectrum analyzer. 
+The Radio Frequency - Direction Finding System and Environmental Monitoring System are tools utilized by the NRAO-NM Interference Protection Group to identify and locate RF interference at the Very Large Array. The former is a 3-meter dish antenna with azimuth and elevation drives whereas the latter is a 50-foot tower with an omnidirectional club antenna. Both are connected to the RFI shack and are shown in Fig~\ref{fig:livepic}. A Python front end interface allows the user to control RF switching between both antennas and log data through a spectrum analyzer. 
+\begin{figure}[!ht]
+  \begin{center}
+    \includegraphics[width=0.8\textwidth]{images/IMG_0542.JPG}
+  \end{center}
+  \caption{RF-DFS (foreground), RF-EMS and RFI shack (background).}\label{fig:livepic}
+\end{figure}
 
 \subsection{System Overview}
 The three locations of note are the RFI shack, the RF-DFS dish, and the RF-EMS tower. A block diagram which shows the breakdown of major components and their connections is shown in Figure~\ref{fig:sysblock2}. The user will be able to control all IO functions through the Python application run on the PC (\verb|EMSMONPC2|).  SCPI commands issued over GPIB allow the user to control and view the spectrum analyzer display on the PC and a serial connection facilitates the same function with the motor controller. This motor controller is a Parker Hannifin ACR9000 which drives 2 Aries AR-04AE servos; one each for azimuth and elevation. RF switching is controlled by a PLC in the RFI shack (not shown).
