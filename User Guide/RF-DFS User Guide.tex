@@ -1345,6 +1345,34 @@ Design files are located in the git repository hosted at \url{https://github.com
 
 Board files are also located in this repository with instructions for importing libraries to the local project directory. Each board contains a changelog located in the \verb|README.md| which contains vital information for distinguishing flaws and fixes between revisions. Each print with a change from the last print should iterate the revision and be documented in the changelog.
 
+The following subsections (and development of the user interface) require extensive knowledge of Python, tkinter, matplotlib, multithreading, serial and VISA communications, and SCPI commands. Additionally, the documentation for all of the aforementioned modules should be regularly referenced, including the N9040B User's and Programmer's Reference Manual.
+
+\subsubsection{Flow of Control}
+Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter frames highlighted to denote what class they are generated in. The hierarchy from high-level to low-level is \textbf{\textit{Front End Class > Back End Class > Back End Module}}, as shown in Table~\ref{tab:flowofcontrol}. Front end classes generate the tkinter windows and widgets of note and utilize methods from their respective back end object. Back end classes contain methods used for IO with the different hardware components and will directly utilize objects and methods of their respective IO module. Communication with the P1AM-100 PLC is not separated into its own front end class because it cannot handle constant (Multiple times per second) IO queries and thus does not need its own loop thread. Instead, PLC communications are handled by the parent class \verb|FrontEnd| which generates a thread as-needed to call methods from \verb|SerialIO|.
+
+\begin{table}\rowcolors{1}{lightgray!30}{white}
+  \begin{center}
+    \begin{tabularx}{\linewidth}{p{1cm}|>{\raggedright\arraybackslash}X|l|l|l}
+      Color & Handles & Front End Class & Back End Class & Back End Module \\\hline
+      \textcolor{red}{Red} & Root tkinter window, PLC IO, and connection statuses & \lstinline|FrontEnd| & \lstinline|SerialIO| & PySerial\\
+      \textcolor{green!60!black!80}{Green} & Motor communication and interface & \lstinline|AziElePlot(FrontEnd)| & \lstinline|MotorIO| & PySerial\\
+      \textcolor{blue}{Blue} & Spectrum analyzer communication and interface & \lstinline|SpecAn(FrontEnd)| & \lstinline|VisaIO| & PyVISA
+    \end{tabularx}
+  \end{center}
+  \caption{GUI Flow of Control Hierarchy.}\label{tab:flowofcontrol}
+\end{table}\rowcolors{1}{white}{white}
+\begin{figure}
+  \begin{center}
+    \includegraphics[width=\textwidth]{images/4guiwithboxes.png}
+  \end{center}
+  \caption{Python Interface with Tkinter Frames Highlighted.}\label{fig:guiwithboxes}
+\end{figure}
+
+The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|FrontEnd| and exist to facilitate I/O to the motor controller and spectrum analyzer, respectively. Each of these classes contain looped threads which constantly query their respective device for information that will be displayed in the widgets. This ensures synchronization between the device and the interface seen by the user and also allows errors to be caught as soon as possible. The PLC, however, does not have a loop thread and so the program will instead wait for a confirmation message after each command is issued. This means there is a greater chance of device/interface desynchronization with the PLC compared to the motor and spectrum analyzer. The statusMonitor thread is not actually part of a class and exists at a high level to monitor back end class attributes for connection status and some front end class attributes to keep track of what button the user may have selected.
+
+\subsubsection{Adding Spectrum Analyzer Parameters to the GUI}
+stuff
+
 \subsection{Receiver Upgrades}
 As stated in Section~\ref{sec:rfchain}, this upgrade provides the framework to add additional receivers relatively easily. The Mini-Circuits PMA-183PLN+ was picked as an input stage LNA for a 6--18 GHz receiver although downconverting components would still need to be sourced. Figure~\ref{fig:pma183} shows the measured s-parameters for a designed and assembled amplifier which prove reasonable. Mini-Circuits also claims a nominal 1.4 dB noise figure within the operating frequency which is comparable to the PMA3-14LN+ at a nominal 1.8 dB.
 
