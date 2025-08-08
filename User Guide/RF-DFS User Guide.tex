@@ -9,6 +9,7 @@
 % chktex-file 17
 % chktex-file 24
 % chktex-file 26
+% chktex-file 32
 % chktex-file 36
 % chktex-file 44
 % chktex-file 46
@@ -41,6 +42,7 @@
 \pagestyle{fancy}
 \usepackage{lastpage}   % Allows referencing last page (for footer)
 \usepackage{listings}   % For highlighting code
+\usepackage{soul}       % For highlighting words in code
 \usepackage{titling}    % To reference title, author, and date
 \usepackage{array}      % For fixed-width tables
 \usepackage{tabularx}   % For tables with automatic line breaks and fixed widths too i think
@@ -108,6 +110,10 @@
     tabsize=2
 }
 \lstset{style=mystyle}
+% Command to highlight listing line
+\definecolor{gitaddcolor}{HTML}{9BDEAF}
+\newcommand{\gitadd}{\makebox[0pt][l]{\color{gitaddcolor}\rule[-0.45em]{\linewidth}{1.5em}}}
+\sethlcolor{gitaddcolor}
 
 % Global TikZ parameters
 \ctikzset{blocks dc segments=3}
@@ -1370,8 +1376,164 @@ Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter f
 
 The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|FrontEnd| and exist to facilitate I/O to the motor controller and spectrum analyzer, respectively. Each of these classes contain looped threads which constantly query their respective device for information that will be displayed in the widgets. This ensures synchronization between the device and the interface seen by the user and also allows errors to be caught as soon as possible. The PLC, however, does not have a loop thread and so the program will instead wait for a confirmation message after each command is issued. This means there is a greater chance of device/interface desynchronization with the PLC compared to the motor and spectrum analyzer. The statusMonitor thread is not actually part of a class and exists at a high level to monitor back end class attributes for connection status and some front end class attributes to keep track of what button the user may have selected.
 
-\subsubsection{Adding Spectrum Analyzer Parameters to the GUI}
-stuff
+\subsubsection{Adding Spectrum Analyzer Parameters}
+The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
+
+The class \verb|Parameter| in \verb|main.py|, shown in Figure~\ref{fig:classparam}, is used to associate a spectrum analyzer parameter with the respective SCPI command and tkinter widget controlling it.\ \verb|Parameter| objects should be named in Pascal case.
+
+\begin{figure}[ht]
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=126, language=Python]
+class Parameter:
+    instances = []
+    def __init__(self, name, command, log = True):
+        """Spectrum analyzer parameter and associated SCPI command.
+
+        Args:
+            name (string): Full name to be used in trace csv.
+            command (string): SCPI command used to query/set parameter.
+            log (bool): Determines whether or not to save the parameter to trace csv. Defaults to True.
+        """
+        Parameter.instances.append(self)
+        self.name = name
+        self.command = command
+        self.log = log
+        self.arg = None
+        self.widget = None
+        self.value = None
+
+    def update(self, arg = None, widget = None, value=None):
+        """Update the argument/value and tkinter widget associated with the parameter.
+
+        Args:
+            arg (any, optional): Parameter argument. Defaults to None.
+            widget (ttk.Widget or Tkinter_variable, optional): Associated tkinter widget. Defaults to None.
+            value(any, optional): Parameter value. Defaults to None.
+        """
+        if arg is not None:
+            self.arg = arg
+        if widget is not None:
+            self.widget = widget
+        if value is not None:
+            self.value = value
+\end{lstlisting}
+\caption{Class Parameter Declaration.}\label{fig:classparam}
+\end{figure}
+
+To add the parameter for number of sweep points, see the N9040B \textit{SA Mode User's and Programmer's Reference} for the associated SCPI command. In this case, it is \verb|[:SENSe]:SWEep:POINts|, as shown in Figure~\ref{fig:paraminstantiation}. Create an object with a string for the name of the parameter and the SCPI command associated with it. The attribute \verb|log| is a boolean variable which determines if the parameter should be saved in trace CSVs.
+
+\begin{figure}[ht]
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=159, language=Python]
+CenterFreq      = Parameter('Center Frequency', ':SENS:FREQ:CENTER', log=False)
+Span            = Parameter('Span', ':SENS:FREQ:SPAN', log=False)
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=185, language=Python]
+AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=186, language=Python, escapechar=\%, backgroundcolor=\color{gitaddcolor}]
+SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
+\end{lstlisting}
+\caption{Parameter Object Instantiation.}\label{fig:paraminstantiation}
+\end{figure}
+
+Next, a tkinter widget needs to be created and associated with the parameter. This is done in the \verb|__init__| method of class \verb|SpecAn|, as shown in Figure~\ref{fig:tkintersweeppoints}. These tkinter objects should be named in camel case, ending with the type of tkinter widget it represents.\ \verb|ttk.Entry| widgets can be validated with the function \verb|isNumWrapper| to only allow entering numbers, signs, and \textit{e} for exponents. Mutually exclusive \verb|ttk.Radiobutton| widgets can be added although a tkinter variable must be created and associated with them, such as is the case of \lstinline[language=Python]|tkRbwType = BooleanVar()|.\ \verb|ttk.Combobox| widgets must be associated with a tuple containing the strings which will populate the combobox, which is initialized as \lstinline[language=Python]|self.TRACE_TYPE_VALUES = ('Clear/Write', 'Trace Average', 'Max Hold', 'Min Hold')|. Additionally, a tuple containing the arguments to send to the device must be initialized as \lstinline[language=Python]|self.TRACE_TYPE_VAL_ARGS = ('WRIT', 'AVER', 'MAXH', 'MINH')|.\ \verb|ttk.LabelFrame| widgets are used to label a widget or group of widgets.
+
+After the widget is created, the \verb|Parameter| must be associated with it by calling the method \lstinline|Parameter.update|, passing the widget object as the argument \verb|widget|. The exception to this is mutually exclusive radiobutton widgets, where the tkinter variable should be passed due to multiple widgets being associated with one \verb|Parameter| object.
+
+\begin{figure}[ht]
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python]
+class SpecAn(FrontEnd):
+    def __init__(self, Vi, parentWidget):
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=751, language=Python]
+        # MEASUREMENT TAB 2 (BANDWIDTH)
+        rbwFrame = ttk.LabelFrame(self.tab2, text="Res BW")
+        rbwFrame.grid(row=0, column=0, sticky=NSEW)
+        self.rbwEntry = ttk.Entry(rbwFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.rbwEntry.pack(expand=True, fill=BOTH)
+        self.rbwAutoButton = ttk.Radiobutton(rbwFrame, variable=tkRbwType, text="Auto", value=AUTO)
+        self.rbwAutoButton.pack(anchor=W, expand=True, fill=BOTH)
+        self.rbwManButton = ttk.Radiobutton(rbwFrame, variable=tkRbwType, text="Manual", value=MANUAL)
+        self.rbwManButton.pack(anchor=W, expand=True, fill=BOTH)
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=819, language=Python, backgroundcolor=\color{gitaddcolor}]
+        # MEASUREMENT TAB 4 (SWEEP)
+        sweepPointsFrame = ttk.LabelFrame(self.tab4, text="Points")
+        sweepPointsFrame.grid(row=0, column=0, sticky=NSEW)
+        self.sweepPointsEntry = ttk.Entry(sweepPointsFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.sweepPointsEntry.pack(expand=True, fill=BOTH)
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=834, language=Python]
+        # MEASUREMENT TAB 5 (TRACE)
+        traceTypeFrame = ttk.LabelFrame(self.tab5, text='Trace Type')
+        traceTypeFrame.grid(row=0, column=0, sticky=NSEW)
+        self.traceTypeCombo = ttk.Combobox(traceTypeFrame, values=self.TRACE_TYPE_VALUES)
+        self.traceTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=892, language=Python, backgroundcolor=\color{gitaddcolor}]
+        SweepPoints.update(widget=self.sweepPointsEntry)
+\end{lstlisting}
+\caption{Tkinter Widget Instantiation.}\label{fig:tkintersweeppoints}
+\end{figure}
+
+The new widgets must then be bound to a trigger of some sort, such as a tkinter event, which will call the method \lstinline[language=Python]|SpecAn.setAnalyzerThreadHandler()| with the correct arguments. Figure~\ref{fig:widgetbindings} shows examples of bindings for entry, radiobutton, and combobox widgets, in that order. Entries are bound to the tkinter event \lstinline[language=Python]|'<Return>'| which corresponds to the \verb|Enter| key, with the argument being the entry's contents. Combobox widgets are bound to the event \lstinline[language=Python]|'<<ComboboxSelected>>'| which is triggered when the user selects a combobox item, initiating a method call with the respective argument being the combobox's index.
+
+\begin{figure}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python]
+class SpecAn(FrontEnd):
+    def bindWidgets(self):
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=912, language=Python]
+        self.rbwEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, rbw = self.rbwEntry.get()))
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=919, language=Python, backgroundcolor=\color{gitaddcolor}]
+        self.sweepPointsEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, sweeppoints = self.sweepPointsEntry.get()))
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=927, language=Python]
+        self.rbwAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(rbwtype=AUTO))
+        self.rbwManButton.configure(command = lambda: self.setAnalyzerThreadHandler(rbwtype=MANUAL))
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none]
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=933, language=Python]
+        self.traceTypeCombo.bind("<<ComboboxSelected>>", lambda event: self.setAnalyzerThreadHandler(event, tracetype = self.traceTypeCombo.current()))
+\end{lstlisting}
+\caption{Tkinter Widget Bindings.}\label{fig:widgetbindings}
+\end{figure}
+
+Lastly, the method \lstinline[language=Python]|SpecAn.setAnalyzerValue| must be updated to include an argument for the new parameter. This argument's default value should always be \verb|None|, the \verb|Parameter| object should then be updated with the new argument, as shown in Figure~\ref{fig:setanalyzervalue}.
+
+\begin{figure}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python, escapechar=!]
+class SpecAn(FrontEnd):
+    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, !\hl{sweeppoints=None,}! tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
+...
+\end{lstlisting}
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=1073, language=Python, backgroundcolor=\color{gitaddcolor}]
+        SweepPoints.update(arg=sweeppoints)
+\end{lstlisting}
+\caption{Addition of Sweep Points to Method setAnalyzerValue.}\label{fig:setanalyzervalue}
+\end{figure}
 
 \subsubsection{API Reference}
 Developers should refer to docstrings and comments within code files in the repository mentioned in Section~\ref{sec:dev}. There is no unified documentation for all functions, methods, classes, etc. The primary files of note are \verb|main.py|, which handles most of the program's functions including all front end tkinter windows, and \verb|frontendio.py|, which contains the back end classes mentioned in Section~\ref{sec:flowofcontrol} for handling IO specific methods.
