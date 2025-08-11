@@ -850,10 +850,10 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
       % \draw[help lines, dashed] grid (12, -7);
       % CONVERTER
       \matrix[wire board, wiresright] (converter) {
-        Tx$-$ &  1   &   \scriptsize D-001   \\
-        Tx+   &  2   &   \scriptsize D-002   \\
-        Rx+   &  3   &   \scriptsize D-003   \\
-        Rx$-$ &  4   &   \scriptsize D-004   \\
+        Tx$-$ &  1   &   \scriptsize Orange  \\
+        Tx+   &  2   &   \scriptsize Wh/Or   \\
+        Rx+   &  3   &   \scriptsize Wh/Gr   \\
+        Rx$-$ &  4   &   \scriptsize Green   \\
         GND   &  5   &   \scriptsize Black   \\
         };
         \draw (converter-1-2.north east) rectangle (converter-5-2.south west);
@@ -862,11 +862,11 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
 
         % LIGHTNING PROTECTION SYSTEM
         \matrix[wire board, wiresboth, matrix anchor=north, right=5cm of converter.north] (lps) {
-          \scriptsize D-006 &   M   &  -----  &  A  & \scriptsize Wh/Gr\\
-          \scriptsize D-004 &   L   &  -----  &  B  & \scriptsize Green\\
-          \scriptsize aaaaa &   K   &  -----  &  C  & \scriptsize Orange\\
-          \scriptsize asdf  &   J   &  -----  &  D  & \scriptsize Wh/Or\\
-          \scriptsize       &   G   &  -----  &  F  & \scriptsize Wh/Bl, Bl\\
+          \scriptsize Wh/Gr &   M   &  -----  &  A  & \scriptsize Wh/Gr\\
+          \scriptsize Green &   L   &  -----  &  B  & \scriptsize Green\\
+          \scriptsize Orange&   K   &  -----  &  C  & \scriptsize Orange\\
+          \scriptsize Wh/Or &   J   &  -----  &  D  & \scriptsize Wh/Or\\
+          \scriptsize Red   &   G   &  -----  &  F  & \scriptsize Wh/Bl, Bl\\
           \scriptsize Black &   H   &  GND    &  E  & \scriptsize Wh/Br, Br\\
         };
         % Boxing the contents
