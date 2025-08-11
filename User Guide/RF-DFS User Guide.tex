@@ -1308,7 +1308,7 @@ From here, the user can issue SCPI commands to the spectrum analyzer using the c
   \caption{Python Graphical User Interface.}\label{fig:gui}
 \end{figure}
 
-\subsubsection{Terminal}
+\subsubsection{Terminal}\label{sec:terminal}
 The terminal at the bottom of the window will be the primary means of communicating information and exceptions to the user. Exceptions are not unconditionally fatal, but they should be noted to investigate if the problem lies in hardware or software. The user should consider saving a log of the terminal under \verb|File>Save log| if necessary. Up and down arrow keys can be used to access previously issued commands to the terminal.
 
 Python commands can also be evaluated or executed in the terminal, the difference between both commands is described in the Python documentation. It is highly recommended to reference the source code when issuing terminal commands, as this has the potential for deadlock, race conditions, and other undefined scenarios if care is not taken. Instances, their attributes, and methods, can all be accessed using the terminal although all commands will be generated in the main thread. As a result, most IO calls will be blocking for the duration of their execution. This can be avoided by using a thread handler, if it exists in the appropriate scope, or generating a thread for the given IO call. See:
@@ -1374,7 +1374,25 @@ Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter f
   \caption{Python Interface with Tkinter Frames Highlighted.}\label{fig:guiwithboxes}
 \end{figure}
 
-The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|FrontEnd| and exist to facilitate I/O to the motor controller and spectrum analyzer, respectively. Each of these classes contain looped threads which constantly query their respective device for information that will be displayed in the widgets. This ensures synchronization between the device and the interface seen by the user and also allows errors to be caught as soon as possible. The PLC, however, does not have a loop thread and so the program will instead wait for a confirmation message after each command is issued. This means there is a greater chance of device/interface desynchronization with the PLC compared to the motor and spectrum analyzer. The statusMonitor thread is not actually part of a class and exists at a high level to monitor back end class attributes for connection status and some front end class attributes to keep track of what button the user may have selected.
+The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|FrontEnd| and exist to facilitate I/O to the motor controller and spectrum analyzer, respectively. Each of these classes contain looped threads which constantly query their respective device for information that will be displayed in the widgets. This ensures synchronization between the device and the interface seen by the user and also allows errors to be caught as soon as possible. The PLC, however, does not have a loop thread and so the program will instead wait for a confirmation message after each command is issued. This means there is a greater chance of device/interface desynchronization with the PLC compared to the motor and spectrum analyzer. The \verb|statusMonitor| thread is not actually part of a class and exists at a high level to monitor back end class attributes for connection status and some front end class attributes to keep track of what button the user may have selected.
+
+\subsubsection{Thread Safety}
+Naturally, the front end application is a highly multithreaded program due to the amount of resources that must be accessed. None of the IO modules or tkinter are inherently thread-safe and so care should be taken to prevent deadlock conditions. See Figure~\ref{fig:threadlocks} for the currently available threading events in the program.\ \verb|visaLock|, \verb|motorLock|, and \verb|plcLock| are locks specifically for their external resource.\ \verb|specPlotLock| and \verb|bearingPlotLock| are for the tkinter canvases shown in Figure~\ref{fig:guiwithboxes}. There are many instances where both types of locks will be used for the same lines of code, however, they should not be conflated.
+
+\begin{figure}[ht]
+\begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=100, language=Python]
+# THREADING EVENTS
+visaLock = threading.RLock()        # For VISA resources
+motorLock = threading.RLock()       # For motor controller
+plcLock = threading.RLock()         # For PLC
+specPlotLock = threading.RLock()    # For matplotlib spectrum plot
+bearingPlotLock = threading.RLock() # For matplotlib antenna direction plot
+autoQueueLock = threading.RLock()   # For list of automated sweep datetimes
+\end{lstlisting}
+\caption{Threading Object Locks in \lstinline|main.py|.}\label{fig:threadlocks}
+\end{figure}
+
+Most IO operations, with the exception of loop threads, should generate a separate thread for their function. This is also the purpose of the thread handlers mentioned in Section~\ref{sec:terminal}
 
 \subsubsection{Adding Spectrum Analyzer Parameters}
 The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
@@ -1416,7 +1434,7 @@ class Parameter:
         if value is not None:
             self.value = value
 \end{lstlisting}
-\caption{Class Parameter Declaration.}\label{fig:classparam}
+\caption{Class \lstinline|Parameter| Declaration.}\label{fig:classparam}
 \end{figure}
 
 To add the parameter for number of sweep points, see the N9040B \textit{SA Mode User's and Programmer's Reference} for the associated SCPI command. In this case, it is \verb|[:SENSe]:SWEep:POINts|, as shown in Figure~\ref{fig:paraminstantiation}. Create an object with a string for the name of the parameter and the SCPI command associated with it. The attribute \verb|log| is a boolean variable which determines if the parameter should be saved in trace CSVs.
@@ -1435,7 +1453,7 @@ AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=186, language=Python, escapechar=\%, backgroundcolor=\color{gitaddcolor}]
 SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
 \end{lstlisting}
-\caption{Parameter Object Instantiation.}\label{fig:paraminstantiation}
+\caption{Class \lstinline|Parameter| Object Instantiation.}\label{fig:paraminstantiation}
 \end{figure}
 
 Next, a tkinter widget needs to be created and associated with the parameter. This is done in the \verb|__init__| method of class \verb|SpecAn|, as shown in Figure~\ref{fig:tkintersweeppoints}. These tkinter objects should be named in camel case, ending with the type of tkinter widget it represents.\ \verb|ttk.Entry| widgets can be validated with the function \verb|isNumWrapper| to only allow entering numbers, signs, and \textit{e} for exponents. Mutually exclusive \verb|ttk.Radiobutton| widgets can be added although a tkinter variable must be created and associated with them, such as is the case of \lstinline[language=Python]|tkRbwType = BooleanVar()|.\ \verb|ttk.Combobox| widgets must be associated with a tuple containing the strings which will populate the combobox, which is initialized as \lstinline[language=Python]|self.TRACE_TYPE_VALUES = ('Clear/Write', 'Trace Average', 'Max Hold', 'Min Hold')|. Additionally, a tuple containing the arguments to send to the device must be initialized as \lstinline[language=Python]|self.TRACE_TYPE_VAL_ARGS = ('WRIT', 'AVER', 'MAXH', 'MINH')|.\ \verb|ttk.LabelFrame| widgets are used to label a widget or group of widgets.
@@ -1532,7 +1550,7 @@ class SpecAn(FrontEnd):
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=1073, language=Python, backgroundcolor=\color{gitaddcolor}]
         SweepPoints.update(arg=sweeppoints)
 \end{lstlisting}
-\caption{Addition of Sweep Points to Method setAnalyzerValue.}\label{fig:setanalyzervalue}
+\caption{Addition of Sweep Points to Method \lstinline|SpecAn.setAnalyzerValue|.}\label{fig:setanalyzervalue}
 \end{figure}
 
 \subsubsection{API Reference}
