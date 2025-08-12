@@ -1825,12 +1825,14 @@ def openSaveDialog(type):
             with specPlotLock:
                 Spec_An.fig.savefig(filename)
 
-def saveTrace(f=None, filePath=None):
+def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
     """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found.
 
     Args:
         f (file, optional): File object to save to. Defaults to None.
         filePath (string, optional): File path to save to if f is None. Defaults to None.
+        xdata (list, optional): List of x data points to save. If None, get x data points from plot. Defaults to None.
+        ydata (list, optional): List of y data points to save. If None, get y data points from plot. Defaults to None.
 
     Raises:
         AttributeError: If both f and filePath is None
@@ -1848,11 +1850,12 @@ def saveTrace(f=None, filePath=None):
             x += 1
         f = open(fileJoined, 'w')
 
-    with specPlotLock:
-        data = Spec_An.ax.lines[0].get_data()
-        xdata = data[0]
-        ydata = data[1]
-        buffer = ''
+    if xdata is None and ydata is None:
+        with specPlotLock:
+            data = Spec_An.ax.lines[0].get_data()
+            xdata = data[0]
+            ydata = data[1]
+            buffer = ''
     if '.txt' in f.name:
         delimiter = '\t'
     else:
@@ -1998,14 +2001,14 @@ def generateAutoDialog():
     # Tab 2 (Scripting)
     presetsFrame = ttk.LabelFrame(_frame2, text='Presets')
     presetsFrame.grid(row=0, column=0, sticky=NSEW)
-    textBox = tk.Text(_frame2)
+    textBox = tk.Text(_frame2, width=120)
     textBox.grid(row=0, column=1, sticky=NSEW)
     clearAndSetWidget(textBox, automation.textBoxString)
     button1 = ttk.Button(presetsFrame, text='Default', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
     button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
-    button2 = ttk.Button(presetsFrame, text='Preset 1', command=lambda: clearAndSetWidget(textBox, automation.presets.preset1))
+    button2 = ttk.Button(presetsFrame, text='Average', command=lambda: clearAndSetWidget(textBox, automation.presets.preset1))
     button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
-    button3 = ttk.Button(presetsFrame, text='Preset 2', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
+    button3 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: clearAndSetWidget(textBox, automation.presets.maxhold))
     button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
     button4 = ttk.Button(presetsFrame, text='Preset 3', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
     button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)

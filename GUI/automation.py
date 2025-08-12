@@ -20,3 +20,17 @@ def initSchedule():
 def onSchedule():
     pass
 """
+            self.maxhold = """# This function is called once when the automation scheduler starts
+def initSchedule():
+    with visaLock:
+        Vi.openRsrc.write(":INIT:CONT OFF")
+    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=12e9, sweeppoints=4001, tracetype=3, avgcount=100)
+    
+# This function is called every time a scheduler job is run
+def onSchedule():
+    with visaLock:
+        buffer = Vi.openRsrc.query_ascii_values(":READ:SAN?")
+    xAxis = buffer[::2]
+    yAxis = buffer[1::2]
+    saveTrace(filePath=automation.filePath, xdata=xAxis, ydata=yAxis)
+"""
