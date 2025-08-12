@@ -1394,6 +1394,9 @@ autoQueueLock = threading.RLock()   # For list of automated sweep datetimes
 
 Most IO operations, with the exception of loop threads, should generate a separate thread for their function. This is also the purpose of the thread handlers mentioned in Section~\ref{sec:terminal}
 
+\subsubsection{Logging}
+The \verb|logging| module is a thread-safe alternative to \verb|print| statements in Python. It allows for easily adjusting logging format and logging levels for a more verbose or conservative response. The file \verb|loggingsetup.py| adds a few levels to the default logger, namely \verb|TERMINAL|, \verb|SERIAL|, \verb|TIMEOUT|, and \verb|VERBOSE|. The first three are used to denote responses from a specific program function which makes identifying them in the terminal easier. The last level is used for debugging and error detection when necessary, as the default level \verb|DEBUG| is used by a variety of Python modules and quickly bloats the terminal output.
+
 \subsubsection{Adding Spectrum Analyzer Parameters}
 The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
 
