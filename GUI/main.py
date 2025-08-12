@@ -4,6 +4,7 @@ from frontendio import *
 from timestamp import *
 from opcodes import *
 from loggingsetup import *
+from automation import *
 
 # OTHER MODULES
 import threading
@@ -13,7 +14,6 @@ from datetime import date, datetime
 import datetime as dt
 from pyvisa import attributes
 import numpy as np
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
 import logging
 import decimal
@@ -113,14 +113,8 @@ job_defaults = {
     'coalesce': cfg['automation']['coalesce'],
     'max_instances': cfg['automation']['job_max_instances']
 }
-class Automation():
-    def __init__(self, executors=None, job_defaults=None):
-        self.queue = []
-        self.state = state.IDLE
-        self.filePath = os.getcwd()
-        self.scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 
-automation = Automation(executors=executors, job_defaults=job_defaults)
+automation = Automation(defaultstate=state.IDLE, executors=executors, job_defaults=job_defaults)
 
 # SPECTRUM ANALYZER PARAMETERS
 class Parameter:
@@ -240,6 +234,15 @@ def clearAndSetWidget(widget, arg):
             widget.insert(0, arg)
             logging.debug(f"clearAndSetWidget passed argument {arg} ({type(arg)}) to {id} ({type(widget)}).")
         widget.configure(state=state)
+    # Set textbox widgets
+    if isinstance(widget, (tk.Text,)):
+        state = widget.cget("state")
+        if state != NORMAL:
+            widget.configure(state=NORMAL)
+        widget.delete(1.0, END)
+        widget.insert(1.0, arg)
+        widget.configure(state=state)
+
 
 def disableChildren(parent):
     """Tries to set the state of the child widgets of parent to 'disable'.
@@ -1773,12 +1776,12 @@ def executeHandler(event, arg):
     logging.terminal(f'>>> {arg}')
     try:
         if execBool.get():
-            exec(arg)
+            exec(arg, globals())
         else:
             if printBool.get():
                 logging.terminal(f'{eval(arg)}')
             else:
-                eval(arg)
+                eval(arg, globals())
     except Exception as e:
         logging.terminal(f'{type(e).__name__}: {e}')
 
@@ -1885,6 +1888,12 @@ def generateConfigDialog():
         ):
         defaultconfig.generateConfig()
 
+def initSchedule():
+    pass
+
+def onSchedule():
+    pass
+
 def generateAutoDialog():
     """Opens a dialog that allows the user to modify the automation queue and file path.
     """
@@ -1895,8 +1904,6 @@ def generateAutoDialog():
         return
 
     def addDateTime():
-        removeDateTime()
-
         _startDate = startDatePicker.get_date()
         _endDate = endDatePicker.get_date()
 
@@ -1909,6 +1916,7 @@ def generateAutoDialog():
             _date = datetime.combine(_startDate + dt.timedelta(days=i), _time.time())
             with autoQueueLock:
                 automation.queue.append(_date)
+                automation.queue.sort()
         _listVar.set(automation.queue)
 
         for i in range(0,len(automation.queue),2):
@@ -1927,10 +1935,30 @@ def generateAutoDialog():
             automation.filePath = dir
         clearAndSetWidget(pathEntry, dir)
 
+    def saveButtonStateHandler(event):
+        saveButton.configure(state=NORMAL)
+    
+    def saveAutomationFunctions(string):
+        automation.textBoxString = string
+        exec(string, globals())
+        saveButton.configure(state=DISABLED)
+
+    # Toplevel and notebook
     _parent = Toplevel()
     _parent.title('Auto-Sweep Configuration')
     _parent.resizable(False, False)
-    pathFrame = tk.Frame(_parent)
+    _notebook = ttk.Notebook(_parent)
+    _notebook.grid(row=0, column=0, sticky=NSEW)
+    _frame1 = ttk.Frame(_notebook)
+    _frame1.rowconfigure(0, weight=1)
+    _frame1.columnconfigure(1, weight=1)
+    _frame2 = ttk.Frame(_notebook)
+    _notebook.add(_frame1, text='Config', sticky=NSEW)
+    _notebook.add(_frame2, text='Scripting')
+    # Tab 1 (Config)
+    configWidgetsFrame = tk.Frame(_frame1, width=30)
+    configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    pathFrame = tk.Frame(configWidgetsFrame)
     pathFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, columnspan=2, sticky=NSEW)
     pathFrame.columnconfigure(0, weight=0)
     pathFrame.columnconfigure(1, weight=1)
@@ -1941,7 +1969,7 @@ def generateAutoDialog():
     clearAndSetWidget(pathEntry, automation.filePath)
     pathPicker = ttk.Button(pathFrame, text='Browse...', command=pickFilePath)
     pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
-    dateFrame = tk.Frame(_parent)
+    dateFrame = tk.Frame(configWidgetsFrame)
     dateFrame.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, columnspan=2, sticky=NSEW)
     dateFrame.columnconfigure(0, weight=0)
     dateFrame.columnconfigure(1, weight=1)
@@ -1953,19 +1981,38 @@ def generateAutoDialog():
     endLabel.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
     endDatePicker = DateEntry(dateFrame)
     endDatePicker.grid(row=1, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    timePicker = SpinTimePickerModern(_parent)
+    timePicker = SpinTimePickerModern(configWidgetsFrame)
     timePicker.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
     timePicker.addAll(constants.HOURS12)
-    addButton = ttk.Button(_parent, text="Generate", command=addDateTime)
+    addButton = ttk.Button(configWidgetsFrame, text="Generate", command=addDateTime)
     addButton.grid(row=3, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
-    removeButton = ttk.Button(_parent, text="Clear", command=removeDateTime)
+    removeButton = ttk.Button(configWidgetsFrame, text="Clear", command=removeDateTime)
     removeButton.grid(row=3, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
-    queueListbox = tk.Listbox(_parent, listvariable=_listVar, width=35)
-    queueListbox.grid(row=0, column=2, rowspan=4, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    queueListbox = tk.Listbox(_frame1, listvariable=_listVar)
+    queueListbox.grid(row=0, column=1, rowspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
     for i in range(0,len(automation.queue),2):
         queueListbox.itemconfigure(i, background='#f0f0ff')
+
+    # Tab 2 (Scripting)
+    presetsFrame = ttk.LabelFrame(_frame2, text='Presets')
+    presetsFrame.grid(row=0, column=0, sticky=NSEW)
+    textBox = tk.Text(_frame2)
+    textBox.grid(row=0, column=1, sticky=NSEW)
+    clearAndSetWidget(textBox, automation.textBoxString)
+    button1 = ttk.Button(presetsFrame, text='Default', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
+    button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
+    button2 = ttk.Button(presetsFrame, text='Preset 1', command=lambda: clearAndSetWidget(textBox, automation.presets.preset1))
+    button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
+    button3 = ttk.Button(presetsFrame, text='Preset 2', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
+    button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
+    button4 = ttk.Button(presetsFrame, text='Preset 3', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
+    button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
+
+    saveButton = ttk.Button(presetsFrame, text='Save Changes', command=lambda: saveAutomationFunctions(textBox.get(1.0, "end-1c")), state=DISABLED)
+    saveButton.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
+    textBox.bind('<KeyRelease>', saveButtonStateHandler)
 
 def autoStartStop():
     """If the automation scheduler is active, pauses it and removes all jobs. If it is paused, add all jobs in automation.queue and resume.
@@ -1975,11 +2022,12 @@ def autoStartStop():
             if automation.queue == []:
                 logging.error('Automation queue is empty')
                 return
+            initSchedule()
             # if the scheduler isn't paused when adding more than 2 jobs it breaks most of the time
             # changing trigger from date to interval fixes it?
             # also commenting out the sys.stdout/err redirectors fixes it and i have no idea why
             for taskDateTime in automation.queue:
-                automation.scheduler.add_job(saveTrace, args=(None, automation.filePath), trigger='date', run_date = taskDateTime)
+                automation.scheduler.add_job(onSchedule, trigger='date', run_date = taskDateTime)
             automation.scheduler.resume()
             automation.state = state.AUTO
         case state.AUTO:
