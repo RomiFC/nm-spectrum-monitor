@@ -601,13 +601,13 @@ The LNAs in these initial 50-10000 MHz receivers are Mini-Circuits PMA3-14LN+ wi
 
 An experiment was conducted to characterize the gain of the RF-EMS signal chain. A signal generator was used to sweep a -40 dBm CW signal up to 12 GHz and the received power was recorded using the N9040B spectrum analyzer. The results in Fig~\ref{fig:emsgain} show two cavities at roughly 5.8 GHz and 7.4 GHz although this was later determined to be a poor 2.92mm connector on the signal generator.
 
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
       \input{figures/emsgain.pgf}
   \end{center}
   \caption{Power received from the EMS with a sweep generator connected to the S3 common port at -40 dBm.}\label{fig:emsgain}
 \end{figure}
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
       \input{figures/pma3-14ln+.pgf}
   \end{center}
@@ -724,7 +724,7 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
   \caption{RFI-Shack Components and Connections}\label{fig:shackblock}
 \end{figure}
 
-\begin{table}
+\begin{table}[!ht]
   \begin{center}
     \begin{tabular}{c|c|c}
       Interface          & Pin 7 & Pin 9 \\ \hline
@@ -735,7 +735,7 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
   \caption{ACR9000 COM1 Transmission Modes.}\label{tab:acr9000com1}
 \end{table}
 
-\begin{figure}[ht]
+\begin{figure}[!ht]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -843,7 +843,7 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
 \caption{RFI Shack PLC Line Wiring Diagram.}\label{fig:shackwiring}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -963,7 +963,7 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
 \caption{Shack to DFS Serial and LOTO Line Wiring Diagram.}\label{fig:serialwiring}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -1216,7 +1216,7 @@ The language used when sending commands to the ACR9000 is Parker Hannifin's own 
 
 The user can test communication and function at any time using a serial terminal emulator such as PuTTY, TeraTerm, etc., with the default configuration of 9600 baud, 8 data bits, no parity, 1 stop bit, and no flow control. The same precautions for generating race conditions should be taken as in Section~\ref{sec:commssa}. To control the DFS with a terminal emulator, open a connection to the ACR9000 and send a CRLF (Enter), the response from the ACR9000 will show the \textit{Prompt Level} of the device.\ \verb|SYS| is the highest communication level from which the user can navigate to \verb|PROGx| or \verb|PLCx| by typing the aforementioned level and pressing \verb|Enter|, where \verb|x| is a non-negative integer (usually 0).\ \verb|PROG0| is the communication level from which all of the commands used by the Python program will be sent, some relevant commands are listed in Table~\ref{tab:acrcommands}.
 
-\subsubsection{Motor Position}
+\subsubsection{Motor Position}\label{sec:motorpos}
 There is a distinction with how the Python program receives motor position information and how it sends move commands. The ACR9000 initializes its axes to 0 degrees azimuth and 0 degrees elevation when powered on. This causes a problem if the antenna is not parked before being powered down. Because of this, the Python program instead queries encoder position and calculates a vector in degrees based on hard-coded encoder positions for x and y axis home in \verb|config.toml| and \verb|defaultconfig.py|. Moving, however, is done by sending \verb|JOG INC| commands in degrees.
 
 The user should regularly calibrate both axes with a level and compass to ensure that the recorded encoder positions for a parked antenna are accurate.
@@ -1299,7 +1299,7 @@ In order to use the front-end interface, download the following deployment requi
 \subsection{Using the Program}\label{sec:usingtheprogram}
 After starting the program, navigate to \verb|Options>Configure| at the top left banner to connect to the appropriate devices/COM ports. The \verb|Connection Status| window will let you know if a device is connected, however, it is up to the user to ensure that the correct device has been selected in the \verb|Configure| menu. The terminal will output any initialization errors (such as if the wrong device/port is selected).
 
-From here, the user can issue SCPI commands to the spectrum analyzer using the control panel on the right, issue motor commands using the \verb|Antenna Position| panel, or select RF chains using the \verb|PLC Operations| panel on the left if it has been initialized. Commands can be issued to the spectrum analyzer by either selecting a button or typing an entry and pressing \verb|Enter|. All entries will be issued in base units for the given parameter (Hz, seconds, etc.), however, shorthand scientific notation is allowed (\verb|5e9| will be passed as 5 GHz).
+From here, the user can issue SCPI commands to the spectrum analyzer using the control panel on the right, issue motor commands using the \verb|Antenna Position| panel, or select RF chains using the \verb|PLC Operations| panel on the left if it has been initialized.
 
 \begin{figure}
   \begin{center}
@@ -1308,8 +1308,11 @@ From here, the user can issue SCPI commands to the spectrum analyzer using the c
   \caption{Python Graphical User Interface.}\label{fig:gui}
 \end{figure}
 
+\subsubsection{Spectrum Plot}
+The spectrum plot and controls are designed to mimic a spectrum analyzer front panel to be as user-friendly as possible. Commands can be issued to the spectrum analyzer by either selecting a button or typing an entry and pressing \verb|Enter|. All entries will be issued in base units for the given parameter (Hz, seconds, etc.), however, shorthand scientific notation is allowed (\verb|5e9| will be passed as 5 GHz). When a command is issued, the respective SCPI string is send to the open resource and all present parameters will be queried for their current value. Thus, if an out of range value is written, such as a stop frequency of 51 GHz, the spectrum analyzer will correct it and the newly queried value will reflect that (50 GHz). This also means that any widgets whose values have been changed without sending a write command will be reset to their correct value.
+
 \subsubsection{Terminal}\label{sec:terminal}
-The terminal at the bottom of the window will be the primary means of communicating information and exceptions to the user. Exceptions are not unconditionally fatal, but they should be noted to investigate if the problem lies in hardware or software. The user should consider saving a log of the terminal under \verb|File>Save log| if necessary. Up and down arrow keys can be used to access previously issued commands to the terminal.
+The terminal at the bottom of the window will be the primary means of communicating information and exceptions to the user. Exceptions are not unconditionally fatal, but they should be noted to investigate if the problem lies in hardware or software. The user can also save logs of the terminal under \verb|File>Save log| as needed. Up and down arrow keys can be used to access previously issued commands to the terminal.
 
 Python commands can also be evaluated or executed in the terminal, the difference between both commands is described in the Python documentation. It is highly recommended to reference the source code when issuing terminal commands, as this has the potential for deadlock, race conditions, and other undefined scenarios if care is not taken. Instances, their attributes, and methods, can all be accessed using the terminal although all commands will be generated in the main thread. As a result, most IO calls will be blocking for the duration of their execution. This can be avoided by using a thread handler, if it exists in the appropriate scope, or generating a thread for the given IO call. See:
 
@@ -1345,6 +1348,11 @@ thread=threading.Thread(target=Vi.openRsrc.write, args=(":SENS:FREQ:STOP 10e9",)
 thread.start()
 \end{lstlisting}  
 
+\subsubsection{Motor Encoder Calibration}
+As mentioned in Section~\ref{sec:motorpos}, the program relies on hard-coded encoder values to determine an accurate bearing. This is located in the python file \verb|defaultconfig.py| which is packaged within the program binary and can be used to generate a \verb|config.toml| by selecting the option under the \verb|File| header in Figure~\ref{fig:gui}.
+
+The conditions which result in motor encoder desynchronization from a true bearing have not been accurately tested, so operators should regularly verify if a zero degree azimuth antenna points to grid north and if a parked antenna is mechanically level by using a compass and level. This can be done by sending \verb|PRINT P6144| and \verb|PRINT6160| through a terminal emulator when the antenna's position has been physically verified and the controller has been power cycled. Then, using the return values for each bit, update the \verb|x_enc_home| and \verb|y_enc_home| parameters in \verb|defaultconfig.py| if a build of the program is being released or \verb|config.toml| in any other case.
+
 \section{Appendix}
 \subsection{Development}\label{sec:dev}
 Design files are located in the git repository hosted at \url{https://github.com/RomiFC/RF-DFS}. The wiki and \verb|README.md| files contain instructions for setting up a development environment for the Python software and PLC firmware. Functions, methods, and classes, should all be documented with a Python docstring or C/C++ Doxygen brief. Constants and global variables should be declared at the top of each file, below the header and library imports.
@@ -1356,7 +1364,7 @@ The following subsections (and development of the user interface) require extens
 \subsubsection{Flow of Control}\label{sec:flowofcontrol}
 Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter frames highlighted to denote what class they are generated in. The hierarchy from high-level to low-level is \textbf{\textit{Front End Class > Back End Class > Back End Module}}, as shown in Table~\ref{tab:flowofcontrol}. Front end classes generate the tkinter windows and widgets of note and utilize methods from their respective back end object. Back end classes contain methods used for IO with the different hardware components and will directly utilize objects and methods of their respective IO module. Communication with the P1AM-100 PLC is not separated into its own front end class because it cannot handle constant (Multiple times per second) IO queries and thus does not need its own loop thread. Instead, PLC communications are handled by the parent class \verb|FrontEnd| which generates a thread as-needed to call methods from \verb|SerialIO|.
 
-\begin{table}\rowcolors{1}{lightgray!30}{white}
+\begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabularx}{\linewidth}{p{1cm}|>{\raggedright\arraybackslash}X|l|l|l}
       Color & Handles & Front End Class & Back End Class & Back End Module \\\hline
@@ -1393,9 +1401,6 @@ autoQueueLock = threading.RLock()   # For list of automated sweep datetimes
 \end{figure}
 
 Most IO operations, with the exception of loop threads, should generate a separate thread for their function. This is also the purpose of the thread handlers mentioned in Section~\ref{sec:terminal}
-
-\subsubsection{Logging}
-The \verb|logging| module is a thread-safe alternative to \verb|print| statements in Python. It allows for easily adjusting logging format and logging levels for a more verbose or conservative response. The file \verb|loggingsetup.py| adds a few levels to the default logger, namely \verb|TERMINAL|, \verb|SERIAL|, \verb|TIMEOUT|, and \verb|VERBOSE|. The first three are used to denote responses from a specific program function which makes identifying them in the terminal easier. The last level is used for debugging and error detection when necessary, as the default level \verb|DEBUG| is used by a variety of Python modules and quickly bloats the terminal output.
 
 \subsubsection{Adding Spectrum Analyzer Parameters}
 The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
@@ -1463,7 +1468,7 @@ Next, a tkinter widget needs to be created and associated with the parameter. Th
 
 After the widget is created, the \verb|Parameter| must be associated with it by calling the method \lstinline|Parameter.update|, passing the widget object as the argument \verb|widget|. The exception to this is mutually exclusive radiobutton widgets, where the tkinter variable should be passed due to multiple widgets being associated with one \verb|Parameter| object.
 
-\begin{figure}[ht]
+\begin{figure}[!ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python]
 class SpecAn(FrontEnd):
     def __init__(self, Vi, parentWidget):
@@ -1511,7 +1516,7 @@ class SpecAn(FrontEnd):
 
 The new widgets must then be bound to a trigger of some sort, such as a tkinter event, which will call the method \lstinline[language=Python]|SpecAn.setAnalyzerThreadHandler()| with the correct arguments. Figure~\ref{fig:widgetbindings} shows examples of bindings for entry, radiobutton, and combobox widgets, in that order. Entries are bound to the tkinter event \lstinline[language=Python]|'<Return>'| which corresponds to the \verb|Enter| key, with the argument being the entry's contents. Combobox widgets are bound to the event \lstinline[language=Python]|'<<ComboboxSelected>>'| which is triggered when the user selects a combobox item, initiating a method call with the respective argument being the combobox's index.
 
-\begin{figure}
+\begin{figure}[!ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python]
 class SpecAn(FrontEnd):
     def bindWidgets(self):
@@ -1544,7 +1549,7 @@ class SpecAn(FrontEnd):
 
 Lastly, the method \lstinline[language=Python]|SpecAn.setAnalyzerValue| must be updated to include an argument for the new parameter. This argument's default value should always be \verb|None|, the \verb|Parameter| object should then be updated with the new argument, as shown in Figure~\ref{fig:setanalyzervalue}.
 
-\begin{figure}
+\begin{figure}[!ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python, escapechar=!]
 class SpecAn(FrontEnd):
     def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, !\hl{sweeppoints=None,}! tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
@@ -1555,6 +1560,9 @@ class SpecAn(FrontEnd):
 \end{lstlisting}
 \caption{Addition of Sweep Points to Method \lstinline|SpecAn.setAnalyzerValue|.}\label{fig:setanalyzervalue}
 \end{figure}
+
+\subsubsection{Logging}
+The \verb|logging| module is a thread-safe alternative to \verb|print| statements in Python. It allows for easily adjusting logging format and logging levels for a more verbose or conservative response. The file \verb|loggingsetup.py| adds a few levels to the default logger, namely \verb|TERMINAL|, \verb|SERIAL|, \verb|TIMEOUT|, and \verb|VERBOSE|. The first three are used to denote responses from a specific program function which makes identifying them in the terminal easier. The last level is used for debugging and error detection when necessary, as the default level \verb|DEBUG| is used by a variety of Python modules and quickly bloats the terminal output.
 
 \subsubsection{API Reference}
 Developers should refer to docstrings and comments within code files in the repository mentioned in Section~\ref{sec:dev}. There is no unified documentation for all functions, methods, classes, etc. The primary files of note are \verb|main.py|, which handles most of the program's functions including all front end tkinter windows, and \verb|frontendio.py|, which contains the back end classes mentioned in Section~\ref{sec:flowofcontrol} for handling IO specific methods.
@@ -1573,7 +1581,7 @@ It may also be wise to put a switchable power amplifier at the RFI shack as show
 
 Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifiers with typical values for operating frequency, gain, noise figure, output power at 1 dB compression, output third order intercept, and output power at saturation.
 
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
     \begin{circuitikz}
       \draw(0, 0) node[bnc](port1){N9040b};
@@ -1597,7 +1605,7 @@ Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifie
   \end{center}
   \caption{Optional Power Amplifier Inside Shack.}\label{fig:poweramplifier}
 \end{figure}
-\begin{table}\rowcolors{1}{lightgray!30}{white}
+\begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabular}{l|l|l|l|l|l|l}
       MMIC        & Freq (GHz) & Gain (dB) & NF (dB) & P1dB (dBm) & OIP3 (dBm) & P\textsubscript{SAT} (dBm)\\ \hline
