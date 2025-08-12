@@ -1223,8 +1223,8 @@ class SpecAn(FrontEnd):
             except Exception as e:
                 visaLock.release()
                 buffer = None
-            with specPlotLock:
-                if buffer:
+            if buffer:
+                with specPlotLock:
                     try:
                         if 'lines' in locals():     # Remove previous plot if it exists
                             lines.pop(0).remove()
@@ -1850,12 +1850,12 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
             x += 1
         f = open(fileJoined, 'w')
 
+    buffer = ''
     if xdata is None and ydata is None:
         with specPlotLock:
             data = Spec_An.ax.lines[0].get_data()
             xdata = data[0]
             ydata = data[1]
-            buffer = ''
     if '.txt' in f.name:
         delimiter = '\t'
     else:
@@ -1875,7 +1875,7 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
         buffer = buffer + parameter.name + delimiter + value + '\n'
 
     buffer = buffer + 'DATA\n'
-    for index in range(len(data[0])):
+    for index in range(len(xdata)):
         buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
 
     f.write(buffer)
@@ -1937,6 +1937,10 @@ def generateAutoDialog():
         with autoQueueLock:
             automation.filePath = dir
         clearAndSetWidget(pathEntry, dir)
+
+    def presetButtonHandler(string):
+        saveButton.configure(state=NORMAL)
+        clearAndSetWidget(textBox, string)
 
     def saveButtonStateHandler(event):
         saveButton.configure(state=NORMAL)
@@ -2004,13 +2008,13 @@ def generateAutoDialog():
     textBox = tk.Text(_frame2, width=120)
     textBox.grid(row=0, column=1, sticky=NSEW)
     clearAndSetWidget(textBox, automation.textBoxString)
-    button1 = ttk.Button(presetsFrame, text='Default', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
+    button1 = ttk.Button(presetsFrame, text='Default', command=lambda: presetButtonHandler(automation.presets.default))
     button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
-    button2 = ttk.Button(presetsFrame, text='Average', command=lambda: clearAndSetWidget(textBox, automation.presets.preset1))
+    button2 = ttk.Button(presetsFrame, text='Average', command=lambda: presetButtonHandler(automation.presets.preset1))
     button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
-    button3 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: clearAndSetWidget(textBox, automation.presets.maxhold))
+    button3 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: presetButtonHandler(automation.presets.maxhold))
     button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
-    button4 = ttk.Button(presetsFrame, text='Preset 3', command=lambda: clearAndSetWidget(textBox, automation.presets.default))
+    button4 = ttk.Button(presetsFrame, text='Preset 3', command=lambda: presetButtonHandler(automation.presets.default))
     button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
 
     saveButton = ttk.Button(presetsFrame, text='Save Changes', command=lambda: saveAutomationFunctions(textBox.get(1.0, "end-1c")), state=DISABLED)
@@ -2025,7 +2029,8 @@ def autoStartStop():
             if automation.queue == []:
                 logging.error('Automation queue is empty')
                 return
-            initSchedule()
+            thread = threading.Thread(target=initSchedule, daemon=True)
+            thread.start()
             # if the scheduler isn't paused when adding more than 2 jobs it breaks most of the time
             # changing trigger from date to interval fixes it?
             # also commenting out the sys.stdout/err redirectors fixes it and i have no idea why
