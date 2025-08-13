@@ -10,7 +10,7 @@ from automation import *
 import threading
 import sys
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import datetime as dt
 from pyvisa import attributes
 import numpy as np
@@ -178,6 +178,7 @@ AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
 AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
 SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
+TimeParameter   = Parameter('Time', None)
 
 # real code starts here
 def isNumber(input):
@@ -1208,6 +1209,7 @@ class SpecAn(FrontEnd):
     def analyzerDisplayLoop(self):
         """Spectrum analyzer display loop. Constantly fetches the spectrum analyzer xy values and plots it in the matplotlib canvas.
         """
+        yAxisOld = []
         while TRUE:
             try:
                 visaLock.acquire()
@@ -1227,6 +1229,7 @@ class SpecAn(FrontEnd):
                 with specPlotLock:
                     try:
                         if 'lines' in locals():     # Remove previous plot if it exists
+                            yAxisOld = self.ax.lines[0].get_data()[1].tolist()   # Save the currently plotted y data
                             lines.pop(0).remove()
                         stepSize = (stopFreq - startFreq) / (sweepPoints - 1)
                         xAxis = np.zeros(sweepPoints)
@@ -1237,7 +1240,11 @@ class SpecAn(FrontEnd):
                         self.ax.grid(visible=True)
                         self.spectrumDisplay.draw()
                     except Exception as e:
+                        logging.fatal(f'{type(e).__name__}: {e}')
                         pass
+                if 'yAxisOld' in locals():
+                    if yAxis != yAxisOld:
+                        TimeParameter.update(value=datetime.now(timezone.utc).isoformat())
             time.sleep(ANALYZER_REFRESH_DELAY)
 
     def setPlotThreadHandler(self, color=None, marker=None, linestyle=None, linewidth=None, markersize=None):
