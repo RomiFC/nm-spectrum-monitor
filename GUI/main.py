@@ -1857,36 +1857,39 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
             x += 1
         f = open(fileJoined, 'w')
 
-    buffer = ''
-    if xdata is None and ydata is None:
-        with specPlotLock:
-            data = Spec_An.ax.lines[0].get_data()
-            xdata = data[0]
-            ydata = data[1]
-    if '.txt' in f.name:
-        delimiter = '\t'
-    else:
-        delimiter = ','
-
-    for parameter in Parameter.instances:
-        if parameter.log == False:
-            continue
-        if isinstance(parameter.value, (list,)):
-            try:
-                value = parameter.value[0].strip("[]{}()#* \n\t")
-            except:
-                value = str(parameter.value).strip("[]{}()#* \n\t")
+    try:
+        buffer = ''
+        if xdata is None and ydata is None:
+            with specPlotLock:
+                data = Spec_An.ax.lines[0].get_data()
+                xdata = data[0]
+                ydata = data[1]
+        if '.txt' in f.name:
+            delimiter = '\t'
         else:
-            value = str(parameter.value).strip("[]{}()#* \n\t")
+            delimiter = ','
 
-        buffer = buffer + parameter.name + delimiter + value + '\n'
+        for parameter in Parameter.instances:
+            if parameter.log == False:
+                continue
+            if isinstance(parameter.value, (list,)):
+                try:
+                    value = parameter.value[0].strip("[]{}()#* \n\t")
+                except:
+                    value = str(parameter.value).strip("[]{}()#* \n\t")
+            else:
+                value = str(parameter.value).strip("[]{}()#* \n\t")
 
-    buffer = buffer + 'DATA\n'
-    for index in range(len(xdata)):
-        buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
+            buffer = buffer + parameter.name + delimiter + value + '\n'
 
-    f.write(buffer)
-    f.close()
+        buffer = buffer + 'DATA\n'
+        for index in range(len(xdata)):
+            buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
+        f.write(buffer)
+        f.close()
+    except Exception as e:
+        logging.error(f'{type(e).__name__}: {e}')
+        f.close()
 
 def generateConfigDialog():
     """Opens confirmation message if the user wants to generate a new config file.
@@ -2141,6 +2144,8 @@ menubar.add_cascade(menu=menuOptions, label='Options')
 menubar.add_cascade(menu=menuHelp, label='Help')
 
 # File
+menuFile.add_command(label='Quicksave trace', command = lambda: saveTrace(filePath=os.getcwd()))
+menuFile.add_separator()
 menuFile.add_command(label='Save trace', command = lambda: openSaveDialog(type='trace'))
 menuFile.add_command(label='Save log', command = lambda: openSaveDialog(type='log'))
 menuFile.add_command(label='Save image', command = lambda: openSaveDialog(type='image'))
