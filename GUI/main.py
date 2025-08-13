@@ -1975,6 +1975,10 @@ def generateAutoDialog():
         exec(string, globals())
         saveButton.configure(state=DISABLED)
 
+    def onTab(event:tk.Event) -> str:
+        textBox.insert("insert", " "*4)
+        return "break"
+
     # Toplevel and notebook
     _parent = Toplevel()
     _parent.title('Auto-Sweep Configuration')
@@ -2055,6 +2059,7 @@ def generateAutoDialog():
     presetsFrame.grid(row=0, column=0, sticky=NSEW)
     textBox = tk.Text(_frame2, width=120)
     textBox.grid(row=0, column=1, sticky=NSEW)
+    textBox.bind("<Tab>", onTab)
     clearAndSetWidget(textBox, automation.textBoxString)
     button1 = ttk.Button(presetsFrame, text='Default', command=lambda: presetButtonHandler(automation.presets.default))
     button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)

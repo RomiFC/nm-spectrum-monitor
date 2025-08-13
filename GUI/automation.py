@@ -6,7 +6,7 @@ class Automation:
         self.queue = []
         self.state = defaultstate
         self.filePath = os.getcwd()
-        self.scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
+        self.scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults, daemon=True)
         self.presets = self.Presets()
         self.textBoxString = self.presets.default
 
