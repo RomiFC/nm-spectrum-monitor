@@ -1963,6 +1963,10 @@ def generateAutoDialog():
         saveButton.configure(state=NORMAL)
         clearAndSetWidget(textBox, string)
 
+    def lastSavedButtonHandler():
+        clearAndSetWidget(textBox, automation.textBoxString)
+        saveButton.configure(state=DISABLED)
+
     def saveButtonStateHandler(event):
         saveButton.configure(state=NORMAL)
     
@@ -2054,15 +2058,24 @@ def generateAutoDialog():
     clearAndSetWidget(textBox, automation.textBoxString)
     button1 = ttk.Button(presetsFrame, text='Default', command=lambda: presetButtonHandler(automation.presets.default))
     button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
-    button2 = ttk.Button(presetsFrame, text='Average', command=lambda: presetButtonHandler(automation.presets.preset1))
+    button2 = ttk.Button(presetsFrame, text='Clear/Write', command=lambda: presetButtonHandler(automation.presets.clearwrite))
     button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
-    button3 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: presetButtonHandler(automation.presets.maxhold))
+    button3 = ttk.Button(presetsFrame, text='Average', command=lambda: presetButtonHandler(automation.presets.average))
     button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
-    button4 = ttk.Button(presetsFrame, text='Preset 3', command=lambda: presetButtonHandler(automation.presets.default))
+    button4 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: presetButtonHandler(automation.presets.maxhold))
     button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
+    button5 = ttk.Button(presetsFrame, text='Min Hold', command=lambda: presetButtonHandler(automation.presets.minhold))
+    button5.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
 
+    for i in range(7):
+        presetsFrame.rowconfigure(i, weight=0)
+    presetsFrame.rowconfigure(5, weight=1)
+    emptySpace = ttk.Frame(presetsFrame)
+    emptySpace.grid(row=5, column=0, sticky=NSEW)
+    lastSavedButton = ttk.Button(presetsFrame, text='Load Last Saved', command=lambda: lastSavedButtonHandler())
+    lastSavedButton.grid(row=6, column=0, sticky=NSEW, padx=5, pady=5)
     saveButton = ttk.Button(presetsFrame, text='Save Changes', command=lambda: saveAutomationFunctions(textBox.get(1.0, "end-1c")), state=DISABLED)
-    saveButton.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
+    saveButton.grid(row=7, column=0, sticky=NSEW, padx=5, pady=5)
     textBox.bind('<KeyRelease>', saveButtonStateHandler)
 
 def autoStartStop():
