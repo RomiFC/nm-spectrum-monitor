@@ -695,7 +695,7 @@ class SpecAn(FrontEnd):
         self.ax = self.fig.add_subplot()
         self.ax.set_title("Spectrum Plot")
         self.ax.set_xlabel("Frequency (Hz)")
-        self.ax.set_ylabel("Power Spectral Density (dBm/RBW)")
+        self.ax.set_ylabel("Power (dBm)")
         self.ax.autoscale(enable=False, tight=True)
         self.ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
