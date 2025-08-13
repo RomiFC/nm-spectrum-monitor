@@ -10,7 +10,7 @@ from automation import *
 import threading
 import sys
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import datetime as dt
 from pyvisa import attributes
 import numpy as np
@@ -1910,16 +1910,27 @@ def generateAutoDialog():
         _startDate = startDatePicker.get_date()
         _endDate = endDatePicker.get_date()
 
-        _timePicker = timePicker.time()
-        _timeString = f'{_timePicker[0]}:{_timePicker[1]} {_timePicker[2]}'
-        _time = datetime.strptime(_timeString, '%I:%M %p')
+        _startTimePicker = startTimePicker.time()
+        _startTimeString = f'{_startTimePicker[0]}:{_startTimePicker[1]} {_startTimePicker[2]}'
+        _startTime = datetime.strptime(_startTimeString, '%I:%M %p').time()
+        _startDateTime = datetime.combine(_startDate, _startTime)
 
-        _delta = _endDate - _startDate
-        for i in range(_delta.days + 1):
-            _date = datetime.combine(_startDate + dt.timedelta(days=i), _time.time())
+        _endTimePicker = endTimePicker.time()
+        _endTimeString = f'{_endTimePicker[0]}:{_endTimePicker[1]} {_endTimePicker[2]}'
+        _endTime = datetime.strptime(_endTimeString, '%I:%M %p').time()
+        _endDateTime = datetime.combine(_endDate, _endTime)
+
+        _intervalPicker = intervalPicker.time()
+        _intervalString = f'{_intervalPicker[0]}:{_intervalPicker[1]}'
+        _interval = datetime.strptime(_intervalString, '%H:%M').time()
+        _intervalDelta = timedelta(hours=_interval.hour, minutes=_interval.minute)
+
+        _indexDateTime = _startDateTime + _intervalDelta
+        while _indexDateTime < _endDateTime:
             with autoQueueLock:
-                automation.queue.append(_date)
+                automation.queue.append(_indexDateTime)
                 automation.queue.sort()
+            _indexDateTime = _indexDateTime + _intervalDelta
         _listVar.set(automation.queue)
 
         for i in range(0,len(automation.queue),2):
@@ -1963,41 +1974,64 @@ def generateAutoDialog():
     _notebook.add(_frame1, text='Config', sticky=NSEW)
     _notebook.add(_frame2, text='Scripting')
     # Tab 1 (Config)
-    configWidgetsFrame = tk.Frame(_frame1, width=30)
+    configWidgetsFrame = ttk.Frame(_frame1, width=30)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    pathFrame = tk.Frame(configWidgetsFrame)
-    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, columnspan=2, sticky=NSEW)
+    pathFrame = ttk.Frame(configWidgetsFrame)
+    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
     pathFrame.columnconfigure(0, weight=0)
     pathFrame.columnconfigure(1, weight=1)
-    pathLabel = tk.Label(pathFrame, text='File Path')
+    pathLabel = ttk.Label(pathFrame, text='File Path')
     pathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
     pathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
     pathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     clearAndSetWidget(pathEntry, automation.filePath)
     pathPicker = ttk.Button(pathFrame, text='Browse...', command=pickFilePath)
     pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
-    dateFrame = tk.Frame(configWidgetsFrame)
-    dateFrame.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, columnspan=2, sticky=NSEW)
-    dateFrame.columnconfigure(0, weight=0)
-    dateFrame.columnconfigure(1, weight=1)
-    startLabel = tk.Label(dateFrame, text='Start Date')
+    sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    startDateFrame = ttk.Frame(configWidgetsFrame)
+    startDateFrame.grid(row=2, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX)
+    startDateFrame.columnconfigure(0, weight=0)
+    startDateFrame.columnconfigure(1, weight=1)
+    startLabel = ttk.Label(startDateFrame, text='Start Date & Time')
     startLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    startDatePicker = DateEntry(dateFrame)
+    startDatePicker = DateEntry(startDateFrame)
     startDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    endLabel = tk.Label(dateFrame, text='End Date')
-    endLabel.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    endDatePicker = DateEntry(dateFrame)
-    endDatePicker.grid(row=1, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    timePicker = SpinTimePickerModern(configWidgetsFrame)
-    timePicker.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
-    timePicker.addAll(constants.HOURS12)
+    startTimePicker = SpinTimePickerModern(startDateFrame)
+    startTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
+    startTimePicker.addAll(constants.HOURS12)
+    sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    endDateFrame = ttk.Frame(configWidgetsFrame)
+    endDateFrame.grid(row=4, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX)
+    endDateFrame.columnconfigure(0, weight=0)
+    endDateFrame.columnconfigure(1, weight=1)
+    endLabel = ttk.Label(endDateFrame, text='End Date & Time')
+    endLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    endDatePicker = DateEntry(endDateFrame)
+    endDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    endTimePicker = SpinTimePickerModern(endDateFrame)
+    endTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
+    endTimePicker.addAll(constants.HOURS12)
+    sep3 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep3.grid(row=5, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalFrame = ttk.Frame(configWidgetsFrame)
+    intervalFrame.grid(row=6, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalFrame.columnconfigure(0, weight=1)
+    intervalFrame.columnconfigure(1, weight=1)
+    intervalLabel = ttk.Label(intervalFrame, text='Set Interval')
+    intervalLabel.grid(row=0, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker = SpinTimePickerModern(intervalFrame)
+    intervalPicker.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker.addAll(constants.HOURS24)
+
     addButton = ttk.Button(configWidgetsFrame, text="Generate", command=addDateTime)
-    addButton.grid(row=3, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    addButton.grid(row=7, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
     removeButton = ttk.Button(configWidgetsFrame, text="Clear", command=removeDateTime)
-    removeButton.grid(row=3, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    removeButton.grid(row=7, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
 
     queueListbox = tk.Listbox(_frame1, listvariable=_listVar)
-    queueListbox.grid(row=0, column=1, rowspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    queueListbox.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
     for i in range(0,len(automation.queue),2):
         queueListbox.itemconfigure(i, background='#f0f0ff')
