@@ -954,7 +954,7 @@ class SpecAn(FrontEnd):
         Args:
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
-        _frames = (self.tab1, self.tab2, self.tab3, self.tab4)
+        _frames = (self.tab1, self.tab2, self.tab3, self.tab4, self.tab5)
         _widgets = (self.sweepButton, self.restartButton)
 
         if action == ENABLE:
