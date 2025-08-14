@@ -290,8 +290,8 @@
 
 
 % ASSIGN TITLE, AUTHOR, DATE, DOCUMENT NUMBER, STATUS, HERE
-\title{Title goes here}
-\author{Author
+\title{New Mexico Spectrum Monitor Operator's Guide, Build 1.0.0}
+\author{R. Nguyen
     }% <-this % stops a space
 \date{Jan 1, 2000}
 \def\docnum{DOC NUM}
@@ -506,21 +506,36 @@ The three locations of note are the RFI shack, the RF-DFS dish, and the RF-EMS t
   \end{center}
 \end{figure}
 
+The build associated with this document features:
+\begin{enumerate}
+  \item Continuous 50 - 10000 MHz spectrum monitoring
+  \item 0 - 360 degree azimuth and 0 - 90 degree elevation directional monitoring
+  \item Combined functionality of the RF-DFS and RF-EMS that allows for remote operation
+  \item Python scripting and automation to queue operations at any hour
+\end{enumerate}
+
 \subsection{Proactive and Reactive Spectrum Monitoring}
 There are two primary use cases for this system, the first is to proactively make records of the spectrum on a regular basis. These will be uploaded to DRIFT (described in Section~\ref{sec:drift}) and can be configured to be recorded at a time basis of the operator's will. The goal of this is to provide a substantial repository of spectral information that can be referenced at a later date when RFI in the VLA science data needs to be investigated.
 
 When RFI needs to be examined at greater granularity, either in time, frequency, spectral resolution, or otherwise, the operator can manually configure spectrum analyzer parameters and save traces to the local machine. If the user is inside the RFI shack and not accessing the system remotely, they will also have full access to the spectrum analyzer features beyond those implemented in the Python interface.
 
 \subsection{RF Signal Chain}\label{sec:rfchain}
-Each system has a single 50-10000 MHz receiver but the framework is in place to add additional receivers relatively easily. Figure~\ref{fig:rfblock} shows an RF block diagram of existing components and the plan for an additional 6-18 GHz receiver on the EMS tower.
 
-All switches are Dynatech Microwave M4-413K201L SP4T relay switches. Switches S2 and S3 are already installed in the EMS tower to make adding a receiver as streamlined as possible. The reason there are no switches at the DFS is because it requires either a redesign of the LNA housing to fit relay switches or solid state switches that are integrated on a board with the other RF components.
+\begin{figure}[!ht]
+  \begin{center}
+      \input{figures/pma3-14ln+.pgf}
+  \end{center}
+  \caption{Assembled PMA3-14LN+ Scattering Parameters.}\label{fig:pma3}
+\end{figure}
 
-The coaxial cables running up the tower and to the dish are Andrew LDF1-50 1/4'' heliax cables with an upper frequency limit of 15800 MHz. The loss is around 21 dB/100ft at 16 GHz, as such, it may be required to build a downconverting stage for any higher frequency receivers, especially with the relatively long cable runs present in these systems. For reference, the mule tape measurement from conduit box to conduit box at the shack and RF-DFS is 120ft; the cable length from the shack to the RF-EMS was not measured but is noted to be 62ft in the 2001 RF-EMS senior design report.
+\begin{figure}[!ht]
+  \begin{center}
+      \input{figures/emsgain.pgf}
+  \end{center}
+  \caption{Power received from the EMS with a sweep generator connected to the S3 common port at -40 dBm.}\label{fig:emsgain}
+\end{figure}
 
-The LNAs in these initial 50-10000 MHz receivers are Mini-Circuits PMA3-14LN+ wideband low noise MMICs. The boards that house these amplifiers are designed in house and fabricated on OSHPark 4-layer stackups in order to save cost over using prebuilt components. Figure~\ref{fig:pma3} shows the measured gain of an assembled amplifier over the operating frequency.
-
-\begin{figure}[ht]
+\begin{figure}[!ht]
     \begin{center}
         \begin{circuitikz}
             % \draw[help lines, dashed] grid (14, 3);
@@ -599,20 +614,15 @@ The LNAs in these initial 50-10000 MHz receivers are Mini-Circuits PMA3-14LN+ wi
     \end{center}
 \end{figure}
 
-An experiment was conducted to characterize the gain of the RF-EMS signal chain. A signal generator was used to sweep a -40 dBm CW signal up to 12 GHz and the received power was recorded using the N9040B spectrum analyzer. The results in Fig~\ref{fig:emsgain} show two cavities at roughly 5.8 GHz and 7.4 GHz although this was later determined to be a poor 2.92mm connector on the signal generator.
+Each system has a single 50-10000 MHz receiver but the framework is in place to add additional receivers relatively easily. Figure~\ref{fig:rfblock} shows an RF block diagram of existing components and the plan for an additional 6-18 GHz receiver on the EMS tower.
 
-\begin{figure}[!ht]
-  \begin{center}
-      \input{figures/emsgain.pgf}
-  \end{center}
-  \caption{Power received from the EMS with a sweep generator connected to the S3 common port at -40 dBm.}\label{fig:emsgain}
-\end{figure}
-\begin{figure}[!ht]
-  \begin{center}
-      \input{figures/pma3-14ln+.pgf}
-  \end{center}
-  \caption{Assembled PMA3-14LN+ Scattering Parameters.}\label{fig:pma3}
-\end{figure}
+All switches are Dynatech Microwave M4-413K201L SP4T relay switches. Switches S2 and S3 are already installed in the EMS tower to make adding a receiver as streamlined as possible. The reason there are no switches at the DFS is because it requires either a redesign of the LNA housing to fit relay switches or solid state switches that are integrated on a board with the other RF components.
+
+The coaxial cables running up the tower and to the dish are Andrew LDF1-50 1/4'' heliax cables with an upper frequency limit of 15800 MHz. The loss is around 21 dB/100ft at 16 GHz, as such, it may be required to build a downconverting stage for any higher frequency receivers, especially with the relatively long cable runs present in these systems. For reference, the mule tape measurement from conduit box to conduit box at the shack and RF-DFS is 120ft; the cable length from the shack to the RF-EMS was not measured but is noted to be 62ft in the 2001 RF-EMS senior design report.
+
+The LNAs in these initial 50-10000 MHz receivers are Mini-Circuits PMA3-14LN+ wideband low noise MMICs. The boards that house these amplifiers are designed in house and fabricated on OSHPark 4-layer stackups in order to save cost over using prebuilt components. Figure~\ref{fig:pma3} shows the measured gain of an assembled amplifier over the operating frequency.
+
+An experiment was conducted to characterize the gain of the RF-EMS signal chain. A signal generator was used to sweep a -40 dBm CW signal up to 12 GHz and the received power was recorded using the N9040B spectrum analyzer. The results in Fig~\ref{fig:emsgain} show two cavities at roughly 5.8 GHz and 7.4 GHz although this was later determined to be a poor 2.92mm connector on the signal generator.
 
 \section{Hardware Installation Guide}\label{sec:hig}
 The RFI Shack, RF-DFS, and RF-EMS all contain a metal panel upon which most of their components are mounted. This is located at the base of the pedestal for the RF-DFS and inside the front-end box for the RF-EMS (See Figure~\ref{fig:oldems}). Most components are mounted with \#4-40 or \#6-32 socket head machine screws. Each panel also has a screw terminal block for connecting non-bundled or spliced wires.
@@ -634,13 +644,7 @@ The major components located in the RFI shack are as follows:
   \item One Lockout-Tagout Switch
 \end{enumerate}
 
-The primary IO from the computer is a serial communication line to the ACR9000 motor controller at the RF-DFS, a GPIB or ethernet line to the Keysight N9040B inside the shack, and a USB line to the P1AM-100 PLC inside the shack. Figure~\ref{fig:shackblock} shows how to connect all of these components. The serial line is output as RS-232 from the computer's COM1 port, then is converted to RS-485 before being routed through the HESP4DR lightning protection system and exiting the shack as a CAT6 cable. Coaxial cables from each system are connected to an RF switch with the common port connected to the N9040B. Lastly, the P1AM-100 PLC's output terminal block is connected to another screw terminal block which feeds RF switching lines to S1 in the shack, and S2 and S3 on the EMS panel via CAT6 cable and lightning protection system. This terminal block also feeds a CAT6 cable to the DFS but it is only used for activate the safety warning light.
-
-Wiring from the RS-232 to RS-485 serial converter to the serial lightning protection system is shown in Figure~\ref{fig:serialwiring}. Note that the ACR9000 is capable of both RS-232 and RS-485 full-duplex operation depending on how its COM1 port pins are wired. Reference Table~\ref{tab:acr9000com1} or the \textit{ACR9000 Hardware Installation Guide} for information on this.
-
-Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire as shown in Figure~\ref{fig:shackwiring}, however, a CAT6 cable must be spliced to connect the LPS to the terminal block. This installation assumes all CAT6 cables are using the T568B standard, although T568A could work if the wiring is adjusted for it. The PLC's power supply also drives the ACR9000 \textit{Enable} port through a lockout/tagout switch. When this port is disconnected, the ACR9000 will remain powered and respond to IO, however, the motor will not be driven. This allows an operator to conduct maintenance and upgrades safely without killing power to the entire system. 
-
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
     \begin{circuitikz}
       % PC AND MIDDLE ROW
@@ -723,17 +727,6 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
   \end{center}
   \caption{RFI-Shack Components and Connections}\label{fig:shackblock}
 \end{figure}
-
-\begin{table}[!ht]
-  \begin{center}
-    \begin{tabular}{c|c|c}
-      Interface          & Pin 7 & Pin 9 \\ \hline
-      RS-232             & Open  & Open  \\
-      RS-485 full-duplex & GND   & GND   \\
-    \end{tabular}
-  \end{center}
-  \caption{ACR9000 COM1 Transmission Modes.}\label{tab:acr9000com1}
-\end{table}
 
 \begin{figure}[!ht]
   \begin{center}
@@ -1026,6 +1019,23 @@ Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire
 \caption{RF-DFS PLC Line Wiring Diagram.}\label{fig:dfscat5wiring}
 \end{figure}
 
+The primary IO from the computer is a serial communication line to the ACR9000 motor controller at the RF-DFS, a GPIB or ethernet line to the Keysight N9040B inside the shack, and a USB line to the P1AM-100 PLC inside the shack. Figure~\ref{fig:shackblock} shows how to connect all of these components. The serial line is output as RS-232 from the computer's COM1 port, then is converted to RS-485 before being routed through the HESP4DR lightning protection system and exiting the shack as a CAT6 cable. Coaxial cables from each system are connected to an RF switch with the common port connected to the N9040B. Lastly, the P1AM-100 PLC's output terminal block is connected to another screw terminal block which feeds RF switching lines to S1 in the shack, and S2 and S3 on the EMS panel via CAT6 cable and lightning protection system. This terminal block also feeds a CAT6 cable to the DFS but it is only used for activate the safety warning light.
+
+\begin{table}[!ht]
+  \begin{center}
+    \begin{tabular}{c|c|c}
+      Interface          & Pin 7 & Pin 9 \\ \hline
+      RS-232             & Open  & Open  \\
+      RS-485 full-duplex & GND   & GND   \\
+    \end{tabular}
+  \end{center}
+  \caption{ACR9000 COM1 Transmission Modes.}\label{tab:acr9000com1}
+\end{table}
+
+Wiring from the RS-232 to RS-485 serial converter to the serial lightning protection system is shown in Figure~\ref{fig:serialwiring}. Note that the ACR9000 is capable of both RS-232 and RS-485 full-duplex operation depending on how its COM1 port pins are wired. Reference Table~\ref{tab:acr9000com1} or the \textit{ACR9000 Hardware Installation Guide} for information on this.
+
+Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire as shown in Figure~\ref{fig:shackwiring}, however, a CAT6 cable must be spliced to connect the LPS to the terminal block. This installation assumes all CAT6 cables are using the T568B standard, although T568A could work if the wiring is adjusted for it. The PLC's power supply also drives the ACR9000 \textit{Enable} port through a lockout/tagout switch. When this port is disconnected, the ACR9000 will remain powered and respond to IO, however, the motor will not be driven. This allows an operator to conduct maintenance and upgrades safely without killing power to the entire system. 
+
 \subsection{RF-DFS Components}\label{sec:higdfs}
 % motor controller, motors, serial lps
 The major components located at the RF-DFS are as follows:
@@ -1067,7 +1077,7 @@ The major components located on the RF-EMS tower are as follows:
   \end{enumerate}
 \end{enumerate}
 The panel components are connected to eachother through a terminal block similar to the one seen in the RFI shack. The 4 power supplies provide DC power to all of the RF components although only the 12 and 28 volt supplies are used for the LNAs and switches, respectively. The other two power supplies remain from previous iterations of this system and can be used for future upgrades. This terminal block also connects the CAT6 LPS and its lines from the shack to RF switches S2 and S3 as shown in Figure~\ref{fig:emscat5wiring}
-\begin{figure}[ht]
+\begin{figure}[!ht]
   \begin{center}
     \begin{circuitikz}
       % AC power
@@ -1126,7 +1136,7 @@ The panel components are connected to eachother through a terminal block similar
   \caption{RF-EMS Power Connection Diagram.}\label{fig:emsblock}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -1646,7 +1656,7 @@ This section serves to supplement the information in Section~\ref{sec:rfchain} a
 
 The decision to design PCBs was done as a cost saving measure, considering a connectorized power amplifier may cost \$2000 as opposed to \$200 or less for one built in-house. It also means the footprints, trace dimensions, components, etc., could be reused in future designs so long as the supplier (OSHPark) and stackup remains the same. The most difficult part of this process was testing trace dimensions and SMA launch footprints for a combination that provides an effective wideband impedance match. Early revisions of amplifiers suffered from oscillations, instability, and poor return loss due to large SMA landing pads and center conductors.
 
-\begin{figure}[ht]
+\begin{figure}[!ht]
   \begin{center}
     \begin{tikzpicture}
       \draw (0,0) node[name=sw]{} -- ++ (6,0) node[name=se]{};
@@ -1699,7 +1709,7 @@ For the best performance and stability, each RF trace should be fenced by two ro
 \colorlet{pcbcopper}{orange!30}
 \colorlet{pcbother}{lightgray!30}
 \colorlet{pcbother2}{cyan!25}
-\begin{figure}
+\begin{figure}[!ht]
   \begin{center}
     \begin{tikzpicture}[z={(3.85mm, 6.5mm)}]
       \def\yfactor{0.75}
@@ -1806,7 +1816,7 @@ DATA
 
 Note that these csv files are first converted to a file with a format compatible for DRIFT processing by removing extraneous data and performing frequency unit conversions to MHz. For the sake of consistency with DRIFT nomenclature, a \textit{scan} is equivalent to a spectrum analyzer sweep whereas a \textit{reading} refers to a single pair of x-y points. Table~\ref{tab:driftdata} shows what fields are stored by DRIFT;\@ all fields are assumed to be scan-level metadata unless otherwise specified.
 
-\begin{table}[ht]\rowcolors{1}{lightgray!30}{white}
+\begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabularx}{\linewidth}{l|l|X}
       Field       & Required  & Description \\ \hline
