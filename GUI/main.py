@@ -713,6 +713,11 @@ class SpecAn(FrontEnd):
         self.tab3 = ttk.Frame(measurementTab)
         self.tab4 = ttk.Frame(measurementTab)
         self.tab5 = ttk.Frame(measurementTab)
+        self.tab1.columnconfigure(0, weight=1)
+        self.tab2.columnconfigure(0, weight=1)
+        self.tab3.columnconfigure(0, weight=1)
+        self.tab4.columnconfigure(0, weight=1)
+        self.tab5.columnconfigure(0, weight=1)
         measurementTab.add(self.tab1, sticky=NSEW)
         measurementTab.add(self.tab2, sticky=NSEW)
         measurementTab.add(self.tab3, sticky=NSEW)
@@ -1688,7 +1693,7 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
 
 # Root tkinter interface (contains Front_End and standard output console)
 root = ThemedTk(theme=cfg['theme']['ttk'])
-root.title('RF-DFS')
+root.title('New Mexico Spectrum Monitor Control')
 isNumWrapper = root.register(isNumber)
 
 # Change combobox highlight colors to match entry
