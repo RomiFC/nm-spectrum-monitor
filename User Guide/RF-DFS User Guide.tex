@@ -1348,17 +1348,38 @@ thread=threading.Thread(target=Vi.openRsrc.write, args=(":SENS:FREQ:STOP 10e9",)
 thread.start()
 \end{lstlisting}  
 
+\subsubsection{Automation}\label{sec:automation}
+The automation configuration window can be opened by clicking the \verb|Queue| button on the left hand side control panel. This allows the user to queue Python operations on a time basis from 1 minute to 24 hours via the config tab shown in Figure~\ref{fig:automationconfig}. The backend for this utility is the \verb|APScheduler| module which generates a \verb|BackgroundScheduler| thread to handle job stores, executors, and triggers, when the program is initialized. The \verb|Start/Stop| button on the left hand panel will generate a thread whose target function is \verb|initSchedule|, add a job to the scheduler for each queued time generated in Figure~\ref{fig:automationconfig}, and resume scheduler job processing. The target function of scheduled jobs is \verb|onSchedule| which can be configured in the scripting tab shown in Figure~\ref{fig:automationscripting} along with \verb|initSchedule|.
+
+\begin{figure}[!ht]
+  \begin{center}
+    \includegraphics[width=\textwidth]{images/7autoconfig.png}
+  \end{center}
+  \caption{Automation Panel Configuration Tab.}\label{fig:automationconfig}
+\end{figure}
+
+\begin{figure}[!ht]
+  \begin{center}
+    \includegraphics[width=\textwidth]{images/8autoscript.png}
+  \end{center}
+  \caption{Automation Panel Scripting Tab.}\label{fig:automationscripting}
+\end{figure}
+
+The scripting tab also contains some example preset functions that collect different trace types for reference. As a precaution, the scripted function should maintain any acquired thread locks for as long as necessary to prevent reacquiring the same lock during execution. If not, it's possible that a loop thread could acquire the lock, resulting in race conditions if it modifies the resource in a manner that the job thread is not expecting. The job scheduler also doesn't prevent the user from performing any actions while a job is active, meaning spectrum analyzer, PLC, and motor operations, can still be performed. If the user attempts to access a locked resource while a job is active, it is likely that the program or operation will become unresponsive until the job thread releases that lock.
+
+By default, the \verb|thread_max_workers| value is set to 1, meaning the scheduler can only generate one thread at a time and by extension, only one job can be active at a time. If a job is still active while a queued job is meant to trigger, it will be skipped and processed once the active job concludes operation. At this moment, the scheduler will either execute the skipped job if the \verb|misfire_grace_time| is greater than the elapsed time, or remove the job depending on the \verb|coalesce| setting. More information on \verb|misfire_grace_time| and \verb|coalesce| is available in the \verb|APScheduler| documentation.
+
 \subsubsection{Motor Encoder Calibration}
 As mentioned in Section~\ref{sec:motorpos}, the program relies on hard-coded encoder values to determine an accurate bearing. This is located in the python file \verb|defaultconfig.py| which is packaged within the program binary and can be used to generate a \verb|config.toml| by selecting the option under the \verb|File| header in Figure~\ref{fig:gui}.
 
-The conditions which result in motor encoder desynchronization from a true bearing have not been accurately tested, so operators should regularly verify if a zero degree azimuth antenna points to grid north and if a parked antenna is mechanically level by using a compass and level. This can be done by sending \verb|PRINT P6144| and \verb|PRINT6160| through a terminal emulator when the antenna's position has been physically verified and the controller has been power cycled. Then, using the return values for each bit, update the \verb|x_enc_home| and \verb|y_enc_home| parameters in \verb|defaultconfig.py| if a build of the program is being released or \verb|config.toml| in any other case.
+The conditions which result in motor encoder desynchronization from a true bearing have not been accurately tested, so operators should regularly verify if a zero degree azimuth antenna points to grid north and if a parked antenna is mechanically level by using a compass and level. This can be done by sending \verb|PRINT P6144| and \verb|PRINT P6160| through a terminal emulator when the antenna's position has been physically verified and the controller has been power cycled. Then, using the return values for each bit, update the \verb|x_enc_home| and \verb|y_enc_home| parameters in \verb|defaultconfig.py| if a build of the program is being released or \verb|config.toml| in any other case.
 
 \section{Development}\label{sec:dev}
 Design files are located in the git repository hosted at \url{https://github.com/RomiFC/RF-DFS}. The wiki and \verb|README.md| files contain instructions for setting up a development environment for the Python software and PLC firmware. Functions, methods, and classes, should all be documented with a Python docstring or C/C++ Doxygen brief. Constants and global variables should be declared at the top of each file, below the header and library imports.
 
 Board files are also located in this repository with instructions for importing libraries to the local project directory. Each board contains a changelog located in the \verb|README.md| which contains vital information for distinguishing flaws and fixes between revisions. Each print with a change from the last print should iterate the revision and be documented in the changelog.
 
-The following subsections (and development of the user interface) require extensive knowledge of Python, tkinter, matplotlib, multithreading, serial and VISA communications, and SCPI commands. Additionally, the documentation for all of the aforementioned modules should be regularly referenced, including the N9040B User's and Programmer's Reference Manual.
+The following subsections (and development of the user interface) require extensive knowledge of Python, tkinter, matplotlib, multithreading, serial and VISA communications, and SCPI commands. Additionally, the documentation for all of the aforementioned modules should be regularly referenced, including the N9040B \textit{SA Mode User's and Programmer's Reference Manual}.
 
 \subsection{Flow of Control}\label{sec:flowofcontrol}
 Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter frames highlighted to denote what class they are generated in. The hierarchy from high-level to low-level is \textbf{\textit{Front End Class > Back End Class > Back End Module}}, as shown in Table~\ref{tab:flowofcontrol}. Front end classes generate the tkinter windows and widgets of note and utilize methods from their respective back end object. Back end classes contain methods used for IO with the different hardware components and will directly utilize objects and methods of their respective IO module. Communication with the P1AM-100 PLC is not separated into its own front end class because it cannot handle constant (Multiple times per second) IO queries and thus does not need its own loop thread. Instead, PLC communications are handled by the parent class \verb|FrontEnd| which generates a thread as-needed to call methods from \verb|SerialIO|.
@@ -1386,7 +1407,7 @@ The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|Front
 \subsection{Thread Safety}
 Naturally, the front end application is a highly multithreaded program due to the amount of resources that must be accessed. None of the IO modules or tkinter are inherently thread-safe and so care should be taken to prevent deadlock conditions. See Figure~\ref{fig:threadlocks} for the currently available threading events in the program.\ \verb|visaLock|, \verb|motorLock|, and \verb|plcLock| are locks specifically for their external resource.\ \verb|specPlotLock| and \verb|bearingPlotLock| are for the tkinter canvases shown in Figure~\ref{fig:guiwithboxes}. There are many instances where both types of locks will be used for the same lines of code, however, they should not be conflated.
 
-\begin{figure}[ht]
+\begin{figure}[!ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=100, language=Python]
 # THREADING EVENTS
 visaLock = threading.RLock()        # For VISA resources
@@ -1404,9 +1425,7 @@ Most IO operations, with the exception of loop threads, should generate a separa
 \subsection{Adding Spectrum Analyzer Parameters}
 The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
 
-The class \verb|Parameter| in \verb|main.py|, shown in Figure~\ref{fig:classparam}, is used to associate a spectrum analyzer parameter with the respective SCPI command and tkinter widget controlling it.\ \verb|Parameter| objects should be named in Pascal case.
-
-\begin{figure}[ht]
+\begin{figure}[!ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=126, language=Python]
 class Parameter:
     instances = []
@@ -1444,9 +1463,11 @@ class Parameter:
 \caption{Class \lstinline|Parameter| Declaration.}\label{fig:classparam}
 \end{figure}
 
-To add the parameter for number of sweep points, see the N9040B \textit{SA Mode User's and Programmer's Reference} for the associated SCPI command. In this case, it is \verb|[:SENSe]:SWEep:POINts|, as shown in Figure~\ref{fig:paraminstantiation}. Create an object with a string for the name of the parameter and the SCPI command associated with it. The attribute \verb|log| is a boolean variable which determines if the parameter should be saved in trace CSVs.
+The class \verb|Parameter| in \verb|main.py|, shown in Figure~\ref{fig:classparam}, is used to associate a spectrum analyzer parameter with the respective SCPI command and tkinter widget controlling it.\ \verb|Parameter| objects should be named in Pascal case.
 
-\begin{figure}[ht]
+To add a specific parameter, see the N9040B \textit{SA Mode User's and Programmer's Reference} for the associated SCPI command. In this case, it is \verb|[:SENSe]:SWEep:POINts|, as shown in Figure~\ref{fig:paraminstantiation}. Create an object with a string for the name of the parameter and the SCPI command associated with it. The attribute \verb|log| is a boolean variable which determines if the parameter should be saved in trace CSVs.
+
+\begin{figure}[!ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=159, language=Python]
 CenterFreq      = Parameter('Center Frequency', ':SENS:FREQ:CENTER', log=False)
 Span            = Parameter('Span', ':SENS:FREQ:SPAN', log=False)
