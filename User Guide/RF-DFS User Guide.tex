@@ -508,10 +508,10 @@ The three locations of note are the RFI shack, the RF-DFS dish, and the RF-EMS t
 
 The build associated with this document features:
 \begin{enumerate}
-  \item Continuous 50 - 10000 MHz spectrum monitoring
-  \item 0 - 360 degree azimuth and 0 - 90 degree elevation directional monitoring
-  \item Combined functionality of the RF-DFS and RF-EMS that allows for remote operation
-  \item Python scripting and automation to queue operations at any hour
+  \item Continuous 50 - 10000 MHz monitoring with integrated access to spectrum analyzer commands.
+  \item 0 -- 360 degree azimuth and 0 -- 90 degree elevation directional monitoring.
+  \item Combined functionality of the RF-DFS and RF-EMS that allows for remote operation.
+  \item Python scripting and automation to queue operations at any time.
 \end{enumerate}
 
 \subsection{Proactive and Reactive Spectrum Monitoring}
@@ -826,7 +826,7 @@ The major components located in the RFI shack are as follows:
         % ellipse
         \path(lps-4-3) -- (lps-5-3) coordinate[pos=0.5](lps2midway);
         \draw(lps2midway -| p3)+(-1, 0) ellipse(0.5 and 2.5) coordinate(ellipse);
-        \draw(ellipse)+(0, 2.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable (x2)\\\footnotesize EMS --->\\\footnotesize DFS --->};
+        \draw(ellipse)+(0, 2.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable (x2)\\\footnotesize See Fig.~\ref{fig:dfscat5wiring}, \ref{fig:emscat5wiring}\\\footnotesize DFS, EMS --->};
         % plc to loto
         \draw(v2circ)[->] -- (v2circ -| lps.east) to[switch, name=loto] ++ (2, 0) -- (v2circ -| p3);
         \draw(loto.south) node[anchor=north]{\footnotesize LOTO};
@@ -914,7 +914,7 @@ The major components located in the RFI shack are as follows:
         \draw(converter-3-3.south west) -- (converter-3-2 -| 3eighth) -- (5eighth) -- (lps-1-1.south east);
         \draw(converter-4-3.south west) -- (converter-4-2 -| 3eighth) -- (lps-2-2 -| 5eighth) -- (lps-2-1.south east);
         \draw(converter-5-3.south west) -- (converter-5-2 -| 3eighth) -- (lps-6-2 -| 5eighth) -- (lps-6-1.south east);
-        \draw(lps-5-1.south east)[->] -- (lps-5-2 -| m) -- ++ (0, -1) node[anchor=north]{\scriptsize To LOTO};
+        \draw(lps-5-1.south east)[->] -- (lps-5-2 -| m) -- ++ (0, -1) node[anchor=north]{\scriptsize To LOTO (Fig.~\ref{fig:shackwiring})};
 
         \path(lps2-1-5.south west) -- (db9-4-1.south east)
         coordinate[pos=0.25](1quarter)
@@ -939,7 +939,7 @@ The major components located in the RFI shack are as follows:
 
         \path(lps2-3-3) -- (lps2-4-3) coordinate[pos=0.5](lps2midway);
         \draw(lps2midway -| converter-1-1.east) ellipse(0.5 and 2) coordinate(ellipse);
-        \draw(ellipse |- lps2-1-3)+(0, 0.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable\\\footnotesize <-- Shack\\\footnotesize DFS --->};
+        \draw(ellipse |- lps2-1-3)+(0, 0.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable\\\footnotesize DFS --->\\\footnotesize <-- Shack (Above)};
         
         \draw(lps2-1-5.south west) -- (lps2-1-4 -| 3eighth) -- (db9-1-2 -| 5eighth) -- (db9-1-2);
         \draw(lps2-2-5.south west) -- (lps2-2-4 -| 3eighth) -- (db9-2-2 -| 5eighth) -- (db9-2-2);
@@ -1011,7 +1011,7 @@ The major components located in the RFI shack are as follows:
       % ellipse
       \path(lps-4-3) -- (lps-5-3) coordinate[pos=0.5](lps2midway);
       \draw(lps2midway)+(-4, 0) ellipse(0.5 and 2.5) coordinate(ellipse);
-      \draw(ellipse)+(0, 2.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable\\\footnotesize <-- Shack\\\footnotesize DFS --->};
+      \draw(ellipse)+(0, 2.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable\\\footnotesize DFS --->\\\footnotesize <-- Shack (Fig.~\ref{fig:shackwiring})};
       % shift the picture left a bit so it lines up with the figure before
       \path(p3) -- ++ (0.35, 0);
 \end{tikzpicture}
@@ -1019,7 +1019,7 @@ The major components located in the RFI shack are as follows:
 \caption{RF-DFS PLC Line Wiring Diagram.}\label{fig:dfscat5wiring}
 \end{figure}
 
-The primary IO from the computer is a serial communication line to the ACR9000 motor controller at the RF-DFS, a GPIB or ethernet line to the Keysight N9040B inside the shack, and a USB line to the P1AM-100 PLC inside the shack. Figure~\ref{fig:shackblock} shows how to connect all of these components. The serial line is output as RS-232 from the computer's COM1 port, then is converted to RS-485 before being routed through the HESP4DR lightning protection system and exiting the shack as a CAT6 cable. Coaxial cables from each system are connected to an RF switch with the common port connected to the N9040B. Lastly, the P1AM-100 PLC's output terminal block is connected to another screw terminal block which feeds RF switching lines to S1 in the shack, and S2 and S3 on the EMS panel via CAT6 cable and lightning protection system. This terminal block also feeds a CAT6 cable to the DFS but it is only used for activate the safety warning light.
+The primary IO from the computer is a serial communication line to the ACR9000 motor controller at the RF-DFS, a GPIB or ethernet line to the Keysight N9040B inside the shack, and a USB line to the P1AM-100 PLC inside the shack. Figure~\ref{fig:shackblock} shows how to connect all of these components. The serial line is first output as RS-232 from the computer's COM1 port, then is converted to RS-485 before being routed through the HESP4DR lightning protection system and exiting the shack over a CAT6 cable. Coaxial cables from each system are connected to an RF switch with the common port connected to the N9040B. Lastly, the P1AM-100 PLC's output terminal block is connected to another screw terminal block which feeds RF switching lines to S1 in the shack, and S2 and S3 on the EMS panel via CAT6 cable and lightning protection system. This terminal block also feeds a CAT6 cable to the DFS but it is only used for activating the safety warning light.
 
 \begin{table}[!htb]
   \begin{center}
@@ -1034,7 +1034,7 @@ The primary IO from the computer is a serial communication line to the ACR9000 m
 
 Wiring from the RS-232 to RS-485 serial converter to the serial lightning protection system is shown in Figure~\ref{fig:serialwiring}. Note that the ACR9000 is capable of both RS-232 and RS-485 full-duplex operation depending on how its COM1 port pins are wired. Reference Table~\ref{tab:acr9000com1} or the \textit{ACR9000 Hardware Installation Guide} for information on this.
 
-Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire as shown in Figure~\ref{fig:shackwiring}, however, a CAT6 cable must be spliced to connect the LPS to the terminal block. This installation assumes all CAT6 cables are using the T568B standard, although T568A could work if the wiring is adjusted for it. The PLC's power supply also drives the ACR9000 \textit{Enable} port through a lockout/tagout switch. When this port is disconnected, the ACR9000 will remain powered and respond to IO, however, the motor will not be driven. This allows an operator to conduct maintenance and upgrades safely without killing power to the entire system. 
+Wiring from the P1AM-100 PLC to the terminal block is done with non-bundled wire as shown in Figure~\ref{fig:shackwiring}, however, a CAT6 cable must be spliced to connect the LPS to the terminal block. This installation assumes all CAT6 cables are using the T568B standard. The PLC's power supply also drives the ACR9000 \textit{Enable} port through a lockout/tagout switch. When this port is disconnected, the ACR9000 will remain powered and respond to IO, however, the motor will not be driven. This allows an operator to conduct maintenance and upgrades safely without killing power to the entire system. 
 
 \subsection{RF-DFS Components}\label{sec:higdfs}
 % motor controller, motors, serial lps
@@ -1047,7 +1047,6 @@ The major components located at the RF-DFS are as follows:
   \item One L-com AL-CAT6AJW CAT6a lightning protector
   \item One Global Industrial 12-110VDC forklift strobe light
   \item Two PMA3-14LN+ low noise amplifiers
-  \item One 1.7ft lightning rod
 \end{enumerate}
 Most of these components are located at the base of the pedestal, with the exception of the forklift strobe light which is mounted at the breaker panel inside the DFS fence. All serial, control, and RF lines are run from the shack to a horizontal conduit box at the base of the pedestal. From here, it splits with one conduit line going into the pedestal and another going to the breaker panel.
 
@@ -1055,7 +1054,7 @@ There are three cables coming from the shack as shown in Figure~\ref{fig:shackbl
 
 Inside the pedestal, the ACR9000 and Aries drives are connected as referenced in the \textit{ACR9000 Hardware Installation Guide}. The ACR9000's 5-24 volt \textit{Drive Enable} signal is connected to the lockout-tagout switch in the shack.
 
-The feed and LNA housing are mounted at the apex of the dish with four all-thread rods in a square pattern. The lightning rod is mounted above this using the same all-thread.
+The feed and LNA housing are mounted at the apex of the dish with four all-thread rods in a square pattern.
 
 \subsection{RF-EMS Components}\label{sec:higems}
 % switching, amplifiers, lps,
@@ -1198,7 +1197,7 @@ The panel components are connected to eachother through a terminal block similar
       % ellipse
       \path(lps-4-3) -- (lps-5-3) coordinate[pos=0.5](lps2midway);
       \draw(lps2midway)+(-4, 0) ellipse(0.5 and 2.5) coordinate(ellipse);
-      \draw(ellipse)+(0, 2.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable\\\footnotesize EMS -->\\\footnotesize <-- Shack};
+      \draw(ellipse)+(0, 2.5) node[anchor=south, align=center]{\footnotesize CAT6 Cable\\\footnotesize EMS -->\\\footnotesize <-- Shack (Fig.~\ref{fig:shackwiring})};
 \end{tikzpicture}
 \end{center}
 \caption{RF-EMS PLC Line Wiring Diagram.}\label{fig:emscat5wiring}
@@ -1214,13 +1213,13 @@ SCPI commands are issued to the spectrum analyzer via the PyVISA module, this us
 
 If the user cannot connect to the spectrum analyzer with NI-VISA, the Python interface will not be able to connect either and they must troubleshoot any errors with hardware connections, drivers, and/or the NI-VISA installation.
 
-Immediately after connecting to an instrument (Described in Section~\ref{sec:usingtheprogram}), the Python interface will attempt to identify the device and display the name above the spectrum plot (See \verb|FrontEnd.initDevice()| in \verb|main.py|). If the connection is successful, the thread running \verb|SpecAn.analyzerDisplayLoop()| in \verb|main.py| will initialize the spectrum plot by issuing \verb|*RST|, querying errors stored on the spectrum analyzer, and querying all values displayed by the widgets to the right of the spectrum plot on the Python interface in Figure~\ref{fig:gui}. If this is successful, The spectrum plot will populate with the same points present on the spectrum analyzer's display and the control panel on the right will populate similarly. Any errors during this process will raise an exception and be output in the terminal.
+Immediately after connecting to an instrument (Described in Section~\ref{sec:usingtheprogram}), the Python interface will attempt to identify the device and display the name above the spectrum plot (See \verb|FrontEnd.initDevice()| in \verb|main.py|). If the connection is successful, the user can press the \verb|Initialize| button to issue \verb|*RST|, query errors stored on the spectrum analyzer, and query all values displayed by the widgets to the right of the spectrum plot on the Python interface in Figure~\ref{fig:gui}. If this is successful, The spectrum plot will populate with the same points present on the spectrum analyzer's display and the control panel on the right will populate similarly. Any errors during this process will raise an exception and be output in the terminal.
 
-Care should be taken when issuing SCPI commands either through the terminal, NI-VISA, or the spectrum analyzer's display while the Python program is running in \verb|Continuous| mode as this will likely generate race conditions and raise an exception. When the program is in \verb|Single Sweep| mode, no SCPI commands are issued although the thread running \verb|SpecAn.analyzerDisplayLoop()| will continue to check if a session is open to the device.
+Care should be taken when issuing SCPI commands either through the terminal, NI-VISA, or the spectrum analyzer's front panel while the Python program is running in \verb|Continuous| mode as this will likely generate race conditions and raise an exception. When the program is in \verb|Single Sweep| mode, no SCPI commands are issued although the thread running \verb|SpecAn.analyzerDisplayLoop()| will continue to check if a session is open to the device.
 
 \subsection{Motor Controller}\label{sec:commsmc}
 % aries command reference stuff here, what bits are used
-Communication with the ACR9000 motor controller is facilitated by serial connection over a DB9 cable from the RFI shack. The computer outputs RS-232 which is converted to 4-wire RS-485 before leaving the shack. The ACR9000 also communicates with the Aries azimuth and elevation servo drives via RS-232/485 but this is not controlled, interrupted, or monitored by the PC or Python program in any way.
+Communication with the ACR9000 motor controller is facilitated by serial connection over a CAT6 cable run from the RFI shack. The computer outputs RS-232 which is converted to 4-wire RS-485 before leaving the shack. The ACR9000 also communicates with the Aries azimuth and elevation servo drives via RS-232/485 but this is not controlled, interrupted, or monitored by the PC or Python program in any way.
 
 The language used when sending commands to the ACR9000 is Parker Hannifin's own AcroBASIC, this is a robust language with lots of functionality although at the cost of user-friendliness. The user should reference Parker Hannifin's \textit{ACR Command Language Reference} when troubleshooting problems and making changes to the codebase.
 
@@ -1309,7 +1308,7 @@ In order to use the front-end interface, download the following deployment requi
 \subsection{Using the Program}\label{sec:usingtheprogram}
 After starting the program, navigate to \verb|Options>Configure| at the top left banner to connect to the appropriate devices/COM ports. The \verb|Connection Status| window will let you know if a device is connected, however, it is up to the user to ensure that the correct device has been selected in the \verb|Configure| menu. The terminal will output any initialization errors (such as if the wrong device/port is selected).
 
-From here, the user can issue SCPI commands to the spectrum analyzer using the control panel on the right, issue motor commands using the \verb|Antenna Position| panel, or select RF chains using the \verb|PLC Operations| panel on the left if it has been initialized.
+From here, the user can issue SCPI commands to the spectrum analyzer using the control panel on the right, issue motor commands using the \verb|Antenna Position| panel, or select RF chains using the \verb|PLC Operations| panel on the left after it has been initialized.
 
 \begin{figure}
   \begin{center}
@@ -1359,7 +1358,7 @@ thread.start()
 \end{lstlisting}  
 
 \subsubsection{Automation}\label{sec:automation}
-The automation configuration window can be opened by clicking the \verb|Queue| button on the left hand side control panel. This allows the user to queue Python operations on a time basis from 1 minute to 24 hours via the config tab shown in Figure~\ref{fig:automationconfig}. The backend for this utility is the \verb|APScheduler| module which generates a \verb|BackgroundScheduler| thread to handle job stores, executors, and triggers, when the program is initialized. The \verb|Start/Stop| button on the left hand panel will generate a thread whose target function is \verb|initSchedule|, add a job to the scheduler for each queued time generated in Figure~\ref{fig:automationconfig}, and resume scheduler job processing. The target function of scheduled jobs is \verb|onSchedule| which can be configured in the scripting tab shown in Figure~\ref{fig:automationscripting} along with \verb|initSchedule|.
+The automation configuration window can be opened by clicking the \verb|Queue| button on the left hand side control panel. This allows the user to queue Python operations on a time basis from 1 minute to 24 hours via the config tab shown in Figure~\ref{fig:automationconfig}. The backend for this utility is the \verb|APScheduler| module which generates a \verb|BackgroundScheduler| thread to handle job stores, executors, and triggers, when the program is initialized. The \verb|Start/Stop| button on the left hand panel of the root window in Figure~\ref{fig:gui} will generate a thread with the target function \verb|initSchedule|, add a job to the scheduler for each queued time slot generated (Shown in Figure~\ref{fig:automationconfig}), and resume scheduler job processing. The target function of scheduled jobs is \verb|onSchedule| which can be configured in the scripting tab shown in Figure~\ref{fig:automationscripting} along with \verb|initSchedule|.
 
 \begin{figure}[!htb]
   \begin{center}
@@ -1494,7 +1493,7 @@ SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
 \caption{Class \lstinline|Parameter| Object Instantiation.}\label{fig:paraminstantiation}
 \end{figure}
 
-Next, a tkinter widget needs to be created and associated with the parameter. This is done in the \verb|__init__| method of class \verb|SpecAn|, as shown in Figure~\ref{fig:tkintersweeppoints}. These tkinter objects should be named in camel case, ending with the type of tkinter widget it represents.\ \verb|ttk.Entry| widgets can be validated with the function \verb|isNumWrapper| to only allow entering numbers, signs, and \textit{e} for exponents. Mutually exclusive \verb|ttk.Radiobutton| widgets can be added although a tkinter variable must be created and associated with them, such as is the case of \lstinline[language=Python]|tkRbwType = BooleanVar()|.\ \verb|ttk.Combobox| widgets must be associated with a tuple containing the strings which will populate the combobox, which is initialized as \lstinline[language=Python]|self.TRACE_TYPE_VALUES = ('Clear/Write', 'Trace Average', 'Max Hold', 'Min Hold')|. Additionally, a tuple containing the arguments to send to the device must be initialized as \lstinline[language=Python]|self.TRACE_TYPE_VAL_ARGS = ('WRIT', 'AVER', 'MAXH', 'MINH')|.\ \verb|ttk.LabelFrame| widgets are used to label a widget or group of widgets.
+Next, a tkinter widget needs to be created and associated with the parameter. This is done in the \verb|__init__| method of class \verb|SpecAn|, as shown in Figure~\ref{fig:tkintersweeppoints}. These tkinter objects should be named in camel case, ending with the type of tkinter widget it represents.\ \verb|ttk.Entry| widgets can be validated with the function \verb|isNumWrapper| to only allow entering numbers, signs, and \textit{e} for exponents. Mutually exclusive \verb|ttk.Radiobutton| widgets can be added although a tkinter variable must be created and associated with them, as is the case for \lstinline[language=Python]|tkRbwType = BooleanVar()|. Selectable \verb|ttk.Combobox| widgets must be associated with a tuple containing the strings which will populate the combobox, which is initialized as \lstinline[language=Python]|self.TRACE_TYPE_VALUES = ('Clear/Write', 'Trace Average', 'Max Hold', 'Min Hold')|. Additionally, a tuple containing the arguments to send to the device must be initialized as \lstinline[language=Python]|self.TRACE_TYPE_VAL_ARGS = ('WRIT', 'AVER', 'MAXH', 'MINH')|.\ \verb|ttk.LabelFrame| widgets are used to label a widget or group of widgets.
 
 After the widget is created, the \verb|Parameter| must be associated with it by calling the method \lstinline|Parameter.update|, passing the widget object as the argument \verb|widget|. The exception to this is mutually exclusive radiobutton widgets, where the tkinter variable should be passed due to multiple widgets being associated with one \verb|Parameter| object.
 
