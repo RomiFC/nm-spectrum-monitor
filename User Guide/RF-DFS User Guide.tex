@@ -1403,7 +1403,7 @@ Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter f
     \end{tabularx}
   \end{center}
   \caption{GUI Flow of Control Hierarchy.}\label{tab:flowofcontrol}
-\end{table}\rowcolors{1}{white}{white}
+\end{table}
 \begin{figure}
   \begin{center}
     \includegraphics[width=\textwidth]{images/4guiwithboxes.png}
@@ -1646,7 +1646,7 @@ Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifie
     \end{tabular}
   \end{center}
   \caption{Amplifier Comparison with Typical Values.}\label{tab:amplifiercomparison}
-\end{table}\rowcolors{1}{white}{white}
+\end{table}
 
 Another potential upgrade is a calibrated noise source at both the EMS and DFS antennas. This would be connected with a directional coupler or RF switch in front of the receivers to allow the operator to characterize gain and noise figure of the system and ensure that all receivers are working properly.
 
@@ -1837,7 +1837,7 @@ Note that these csv files are first converted to a file with a format compatible
     \end{tabularx}
   \end{center}
   \caption{DRIFT Unified Fields. Not all fields are used by all sites.}\label{tab:driftdata}
-\end{table}\rowcolors{1}{white}{white}
+\end{table}
 
 DRIFT's upload format requires that csv files have their top row populated with the fields relevant to the given site, followed by a row of values or multiple rows in the case of reading-specific metadata. See Figure~\ref{fig:driftcsvexample} for an example of a csv that would be uploaded to DRIFT.\@ DRIFT does not save these files for a substantial amount of time once they are processed and neither does \verb|EMSMONPC2|. They are converted from the trace format in Figure~\ref{fig:csvexample} to the DRIFT compatible format in Figure~\ref{fig:driftcsvexample}, then uploaded. The Python script which handles this conversion will regularly clean these cached files at an arbitrary time interval. Additionally, DRIFT assumes that if a file with the same \verb|scan_name| is uploaded twice, then the initial table linked to \verb|scan_name| should be replaced. Because of this, it is imperative that scan names are not changed and contain at least a date and an iterating integer for that day.
 
