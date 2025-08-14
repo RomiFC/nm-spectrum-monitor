@@ -1353,15 +1353,14 @@ As mentioned in Section~\ref{sec:motorpos}, the program relies on hard-coded enc
 
 The conditions which result in motor encoder desynchronization from a true bearing have not been accurately tested, so operators should regularly verify if a zero degree azimuth antenna points to grid north and if a parked antenna is mechanically level by using a compass and level. This can be done by sending \verb|PRINT P6144| and \verb|PRINT6160| through a terminal emulator when the antenna's position has been physically verified and the controller has been power cycled. Then, using the return values for each bit, update the \verb|x_enc_home| and \verb|y_enc_home| parameters in \verb|defaultconfig.py| if a build of the program is being released or \verb|config.toml| in any other case.
 
-\section{Appendix}
-\subsection{Development}\label{sec:dev}
+\section{Development}\label{sec:dev}
 Design files are located in the git repository hosted at \url{https://github.com/RomiFC/RF-DFS}. The wiki and \verb|README.md| files contain instructions for setting up a development environment for the Python software and PLC firmware. Functions, methods, and classes, should all be documented with a Python docstring or C/C++ Doxygen brief. Constants and global variables should be declared at the top of each file, below the header and library imports.
 
 Board files are also located in this repository with instructions for importing libraries to the local project directory. Each board contains a changelog located in the \verb|README.md| which contains vital information for distinguishing flaws and fixes between revisions. Each print with a change from the last print should iterate the revision and be documented in the changelog.
 
 The following subsections (and development of the user interface) require extensive knowledge of Python, tkinter, matplotlib, multithreading, serial and VISA communications, and SCPI commands. Additionally, the documentation for all of the aforementioned modules should be regularly referenced, including the N9040B User's and Programmer's Reference Manual.
 
-\subsubsection{Flow of Control}\label{sec:flowofcontrol}
+\subsection{Flow of Control}\label{sec:flowofcontrol}
 Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter frames highlighted to denote what class they are generated in. The hierarchy from high-level to low-level is \textbf{\textit{Front End Class > Back End Class > Back End Module}}, as shown in Table~\ref{tab:flowofcontrol}. Front end classes generate the tkinter windows and widgets of note and utilize methods from their respective back end object. Back end classes contain methods used for IO with the different hardware components and will directly utilize objects and methods of their respective IO module. Communication with the P1AM-100 PLC is not separated into its own front end class because it cannot handle constant (Multiple times per second) IO queries and thus does not need its own loop thread. Instead, PLC communications are handled by the parent class \verb|FrontEnd| which generates a thread as-needed to call methods from \verb|SerialIO|.
 
 \begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
@@ -1384,7 +1383,7 @@ Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter f
 
 The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|FrontEnd| and exist to facilitate I/O to the motor controller and spectrum analyzer, respectively. Each of these classes contain looped threads which constantly query their respective device for information that will be displayed in the widgets. This ensures synchronization between the device and the interface seen by the user and also allows errors to be caught as soon as possible. The PLC, however, does not have a loop thread and so the program will instead wait for a confirmation message after each command is issued. This means there is a greater chance of device/interface desynchronization with the PLC compared to the motor and spectrum analyzer. The \verb|statusMonitor| thread is not actually part of a class and exists at a high level to monitor back end class attributes for connection status and some front end class attributes to keep track of what button the user may have selected.
 
-\subsubsection{Thread Safety}
+\subsection{Thread Safety}
 Naturally, the front end application is a highly multithreaded program due to the amount of resources that must be accessed. None of the IO modules or tkinter are inherently thread-safe and so care should be taken to prevent deadlock conditions. See Figure~\ref{fig:threadlocks} for the currently available threading events in the program.\ \verb|visaLock|, \verb|motorLock|, and \verb|plcLock| are locks specifically for their external resource.\ \verb|specPlotLock| and \verb|bearingPlotLock| are for the tkinter canvases shown in Figure~\ref{fig:guiwithboxes}. There are many instances where both types of locks will be used for the same lines of code, however, they should not be conflated.
 
 \begin{figure}[ht]
@@ -1402,7 +1401,7 @@ autoQueueLock = threading.RLock()   # For list of automated sweep datetimes
 
 Most IO operations, with the exception of loop threads, should generate a separate thread for their function. This is also the purpose of the thread handlers mentioned in Section~\ref{sec:terminal}
 
-\subsubsection{Adding Spectrum Analyzer Parameters}
+\subsection{Adding Spectrum Analyzer Parameters}
 The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
 
 The class \verb|Parameter| in \verb|main.py|, shown in Figure~\ref{fig:classparam}, is used to associate a spectrum analyzer parameter with the respective SCPI command and tkinter widget controlling it.\ \verb|Parameter| objects should be named in Pascal case.
@@ -1561,12 +1560,13 @@ class SpecAn(FrontEnd):
 \caption{Addition of Sweep Points to Method \lstinline|SpecAn.setAnalyzerValue|.}\label{fig:setanalyzervalue}
 \end{figure}
 
-\subsubsection{Logging}
+\subsection{Logging}
 The \verb|logging| module is a thread-safe alternative to \verb|print| statements in Python. It allows for easily adjusting logging format and logging levels for a more verbose or conservative response. The file \verb|loggingsetup.py| adds a few levels to the default logger, namely \verb|TERMINAL|, \verb|SERIAL|, \verb|TIMEOUT|, and \verb|VERBOSE|. The first three are used to denote responses from a specific program function which makes identifying them in the terminal easier. The last level is used for debugging and error detection when necessary, as the default level \verb|DEBUG| is used by a variety of Python modules and quickly bloats the terminal output.
 
-\subsubsection{API Reference}
+\subsection{API Reference}
 Developers should refer to docstrings and comments within code files in the repository mentioned in Section~\ref{sec:dev}. There is no unified documentation for all functions, methods, classes, etc. The primary files of note are \verb|main.py|, which handles most of the program's functions including all front end tkinter windows, and \verb|frontendio.py|, which contains the back end classes mentioned in Section~\ref{sec:flowofcontrol} for handling IO specific methods.
 
+\section{Appendix}
 \subsection{Receiver Upgrades}
 As stated in Section~\ref{sec:rfchain}, this upgrade provides the framework to add additional receivers relatively easily. The Mini-Circuits PMA-183PLN+ was picked as an input stage LNA for a 6--18 GHz receiver although downconverting components would still need to be sourced. Figure~\ref{fig:pma183} shows the measured s-parameters for a designed and assembled amplifier which prove reasonable. Mini-Circuits also claims a nominal 1.4 dB noise figure within the operating frequency which is comparable to the PMA3-14LN+ at a nominal 1.8 dB.
 
