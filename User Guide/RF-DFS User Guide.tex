@@ -418,7 +418,7 @@
 
 \subsection{What is the RF-DFS and RF-EMS?}
 The Radio Frequency - Direction Finding System and Environmental Monitoring System are tools utilized by the NRAO-NM Interference Protection Group to identify and locate RF interference at the Very Large Array. The former is a 3-meter dish antenna with azimuth and elevation drives whereas the latter is a 50-foot tower with an omnidirectional club antenna. Both are connected to the RFI shack and are shown in Fig~\ref{fig:livepic}. A Python front end interface allows the user to control RF switching between both antennas and log data through a spectrum analyzer. 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \includegraphics[width=0.8\textwidth]{images/IMG_0542.JPG}
   \end{center}
@@ -428,7 +428,7 @@ The Radio Frequency - Direction Finding System and Environmental Monitoring Syst
 \subsection{System Overview}
 The three locations of note are the RFI shack, the RF-DFS dish, and the RF-EMS tower. A block diagram which shows the breakdown of major components and their connections is shown in Figure~\ref{fig:sysblock2}. The user will be able to control all IO functions through the Python application run on the PC (\verb|EMSMONPC2|).  SCPI commands issued over GPIB allow the user to control and view the spectrum analyzer display on the PC and a serial connection facilitates the same function with the motor controller. This motor controller is a Parker Hannifin ACR9000 which drives 2 Aries AR-04AE servos; one each for azimuth and elevation. RF switching is controlled by a PLC in the RFI shack (not shown).
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
       \begin{circuitikz}
           % Shack
@@ -521,21 +521,21 @@ When RFI needs to be examined at greater granularity, either in time, frequency,
 
 \subsection{RF Signal Chain}\label{sec:rfchain}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
       \input{figures/pma3-14ln+.pgf}
   \end{center}
   \caption{Assembled PMA3-14LN+ Scattering Parameters.}\label{fig:pma3}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
       \input{figures/emsgain.pgf}
   \end{center}
   \caption{Power received from the EMS with a sweep generator connected to the S3 common port at -40 dBm.}\label{fig:emsgain}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
     \begin{center}
         \begin{circuitikz}
             % \draw[help lines, dashed] grid (14, 3);
@@ -644,7 +644,7 @@ The major components located in the RFI shack are as follows:
   \item One Lockout-Tagout Switch
 \end{enumerate}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{circuitikz}
       % PC AND MIDDLE ROW
@@ -728,7 +728,7 @@ The major components located in the RFI shack are as follows:
   \caption{RFI-Shack Components and Connections}\label{fig:shackblock}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -836,7 +836,7 @@ The major components located in the RFI shack are as follows:
 \caption{RFI Shack PLC Line Wiring Diagram.}\label{fig:shackwiring}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -956,7 +956,7 @@ The major components located in the RFI shack are as follows:
 \caption{Shack to DFS Serial and LOTO Line Wiring Diagram.}\label{fig:serialwiring}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -1021,7 +1021,7 @@ The major components located in the RFI shack are as follows:
 
 The primary IO from the computer is a serial communication line to the ACR9000 motor controller at the RF-DFS, a GPIB or ethernet line to the Keysight N9040B inside the shack, and a USB line to the P1AM-100 PLC inside the shack. Figure~\ref{fig:shackblock} shows how to connect all of these components. The serial line is output as RS-232 from the computer's COM1 port, then is converted to RS-485 before being routed through the HESP4DR lightning protection system and exiting the shack as a CAT6 cable. Coaxial cables from each system are connected to an RF switch with the common port connected to the N9040B. Lastly, the P1AM-100 PLC's output terminal block is connected to another screw terminal block which feeds RF switching lines to S1 in the shack, and S2 and S3 on the EMS panel via CAT6 cable and lightning protection system. This terminal block also feeds a CAT6 cable to the DFS but it is only used for activate the safety warning light.
 
-\begin{table}[!ht]
+\begin{table}[!htb]
   \begin{center}
     \begin{tabular}{c|c|c}
       Interface          & Pin 7 & Pin 9 \\ \hline
@@ -1077,7 +1077,7 @@ The major components located on the RF-EMS tower are as follows:
   \end{enumerate}
 \end{enumerate}
 The panel components are connected to eachother through a terminal block similar to the one seen in the RFI shack. The 4 power supplies provide DC power to all of the RF components although only the 12 and 28 volt supplies are used for the LNAs and switches, respectively. The other two power supplies remain from previous iterations of this system and can be used for future upgrades. This terminal block also connects the CAT6 LPS and its lines from the shack to RF switches S2 and S3 as shown in Figure~\ref{fig:emscat5wiring}
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{circuitikz}
       % AC power
@@ -1136,7 +1136,7 @@ The panel components are connected to eachother through a terminal block similar
   \caption{RF-EMS Power Connection Diagram.}\label{fig:emsblock}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{tikzpicture}
       % \draw[help lines, dashed] grid (12, 3);
@@ -1361,14 +1361,14 @@ thread.start()
 \subsubsection{Automation}\label{sec:automation}
 The automation configuration window can be opened by clicking the \verb|Queue| button on the left hand side control panel. This allows the user to queue Python operations on a time basis from 1 minute to 24 hours via the config tab shown in Figure~\ref{fig:automationconfig}. The backend for this utility is the \verb|APScheduler| module which generates a \verb|BackgroundScheduler| thread to handle job stores, executors, and triggers, when the program is initialized. The \verb|Start/Stop| button on the left hand panel will generate a thread whose target function is \verb|initSchedule|, add a job to the scheduler for each queued time generated in Figure~\ref{fig:automationconfig}, and resume scheduler job processing. The target function of scheduled jobs is \verb|onSchedule| which can be configured in the scripting tab shown in Figure~\ref{fig:automationscripting} along with \verb|initSchedule|.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \includegraphics[width=\textwidth]{images/7autoconfig.png}
   \end{center}
   \caption{Automation Panel Configuration Tab.}\label{fig:automationconfig}
 \end{figure}
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \includegraphics[width=\textwidth]{images/8autoscript.png}
   \end{center}
@@ -1394,7 +1394,7 @@ The following subsections (and development of the user interface) require extens
 \subsection{Flow of Control}\label{sec:flowofcontrol}
 Fig~\ref{fig:guiwithboxes} is an image of the interface with different tkinter frames highlighted to denote what class they are generated in. The hierarchy from high-level to low-level is \textbf{\textit{Front End Class > Back End Class > Back End Module}}, as shown in Table~\ref{tab:flowofcontrol}. Front end classes generate the tkinter windows and widgets of note and utilize methods from their respective back end object. Back end classes contain methods used for IO with the different hardware components and will directly utilize objects and methods of their respective IO module. Communication with the P1AM-100 PLC is not separated into its own front end class because it cannot handle constant (Multiple times per second) IO queries and thus does not need its own loop thread. Instead, PLC communications are handled by the parent class \verb|FrontEnd| which generates a thread as-needed to call methods from \verb|SerialIO|.
 
-\begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
+\begin{table}[!htb]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabularx}{\linewidth}{p{1cm}|>{\raggedright\arraybackslash}X|l|l|l}
       Color & Handles & Front End Class & Back End Class & Back End Module \\\hline
@@ -1417,7 +1417,7 @@ The classes \verb|AziElePlot| and \verb|SpecAn| are child classes of \verb|Front
 \subsection{Thread Safety}
 Naturally, the front end application is a highly multithreaded program due to the amount of resources that must be accessed. None of the IO modules or tkinter are inherently thread-safe and so care should be taken to prevent deadlock conditions. See Figure~\ref{fig:threadlocks} for the currently available threading events in the program.\ \verb|visaLock|, \verb|motorLock|, and \verb|plcLock| are locks specifically for their external resource.\ \verb|specPlotLock| and \verb|bearingPlotLock| are for the tkinter canvases shown in Figure~\ref{fig:guiwithboxes}. There are many instances where both types of locks will be used for the same lines of code, however, they should not be conflated.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=100, language=Python]
 # THREADING EVENTS
 visaLock = threading.RLock()        # For VISA resources
@@ -1435,7 +1435,7 @@ Most IO operations, with the exception of loop threads, should generate a separa
 \subsection{Adding Spectrum Analyzer Parameters}
 The Keysight N9040B has hundreds of available SCPI commands for programming the instrument, only the most commonly used commands are available in the release build of this program. This section will walk through the changes made in commit \verb|61e32b0| which adds functionality to adjust the number of sweep points on the spectrum analyzer.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=126, language=Python]
 class Parameter:
     instances = []
@@ -1477,7 +1477,7 @@ The class \verb|Parameter| in \verb|main.py|, shown in Figure~\ref{fig:classpara
 
 To add a specific parameter, see the N9040B \textit{SA Mode User's and Programmer's Reference} for the associated SCPI command. In this case, it is \verb|[:SENSe]:SWEep:POINts|, as shown in Figure~\ref{fig:paraminstantiation}. Create an object with a string for the name of the parameter and the SCPI command associated with it. The attribute \verb|log| is a boolean variable which determines if the parameter should be saved in trace CSVs.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, firstnumber=159, language=Python]
 CenterFreq      = Parameter('Center Frequency', ':SENS:FREQ:CENTER', log=False)
 Span            = Parameter('Span', ':SENS:FREQ:SPAN', log=False)
@@ -1498,7 +1498,7 @@ Next, a tkinter widget needs to be created and associated with the parameter. Th
 
 After the widget is created, the \verb|Parameter| must be associated with it by calling the method \lstinline|Parameter.update|, passing the widget object as the argument \verb|widget|. The exception to this is mutually exclusive radiobutton widgets, where the tkinter variable should be passed due to multiple widgets being associated with one \verb|Parameter| object.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python]
 class SpecAn(FrontEnd):
     def __init__(self, Vi, parentWidget):
@@ -1546,7 +1546,7 @@ class SpecAn(FrontEnd):
 
 The new widgets must then be bound to a trigger of some sort, such as a tkinter event, which will call the method \lstinline[language=Python]|SpecAn.setAnalyzerThreadHandler()| with the correct arguments. Figure~\ref{fig:widgetbindings} shows examples of bindings for entry, radiobutton, and combobox widgets, in that order. Entries are bound to the tkinter event \lstinline[language=Python]|'<Return>'| which corresponds to the \verb|Enter| key, with the argument being the entry's contents. Combobox widgets are bound to the event \lstinline[language=Python]|'<<ComboboxSelected>>'| which is triggered when the user selects a combobox item, initiating a method call with the respective argument being the combobox's index.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python]
 class SpecAn(FrontEnd):
     def bindWidgets(self):
@@ -1579,7 +1579,7 @@ class SpecAn(FrontEnd):
 
 Lastly, the method \lstinline[language=Python]|SpecAn.setAnalyzerValue| must be updated to include an argument for the new parameter. This argument's default value should always be \verb|None|, the \verb|Parameter| object should then be updated with the new argument, as shown in Figure~\ref{fig:setanalyzervalue}.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt, numbers=none, language=Python, escapechar=!]
 class SpecAn(FrontEnd):
     def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, !\hl{sweeppoints=None,}! tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
@@ -1601,7 +1601,7 @@ Developers should refer to docstrings and comments within code files in the repo
 \subsection{Receiver Upgrades}
 As stated in Section~\ref{sec:rfchain}, this upgrade provides the framework to add additional receivers relatively easily. The Mini-Circuits PMA-183PLN+ was picked as an input stage LNA for a 6--18 GHz receiver although downconverting components would still need to be sourced. Figure~\ref{fig:pma183} shows the measured s-parameters for a designed and assembled amplifier which prove reasonable. Mini-Circuits also claims a nominal 1.4 dB noise figure within the operating frequency which is comparable to the PMA3-14LN+ at a nominal 1.8 dB.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \input{figures/pma-183pln+.pgf}
   \end{center}
@@ -1612,7 +1612,7 @@ It may also be wise to put a switchable power amplifier at the RFI shack as show
 
 Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifiers with typical values for operating frequency, gain, noise figure, output power at 1 dB compression, output third order intercept, and output power at saturation.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{circuitikz}
       \draw(0, 0) node[bnc](port1){N9040b};
@@ -1636,7 +1636,7 @@ Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifie
   \end{center}
   \caption{Optional Power Amplifier Inside Shack.}\label{fig:poweramplifier}
 \end{figure}
-\begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
+\begin{table}[!htb]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabular}{l|l|l|l|l|l|l}
       MMIC        & Freq (GHz) & Gain (dB) & NF (dB) & P1dB (dBm) & OIP3 (dBm) & P\textsubscript{SAT} (dBm)\\ \hline
@@ -1656,7 +1656,7 @@ This section serves to supplement the information in Section~\ref{sec:rfchain} a
 
 The decision to design PCBs was done as a cost saving measure, considering a connectorized power amplifier may cost \$2000 as opposed to \$200 or less for one built in-house. It also means the footprints, trace dimensions, components, etc., could be reused in future designs so long as the supplier (OSHPark) and stackup remains the same. The most difficult part of this process was testing trace dimensions and SMA launch footprints for a combination that provides an effective wideband impedance match. Early revisions of amplifiers suffered from oscillations, instability, and poor return loss due to large SMA landing pads and center conductors.
 
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{tikzpicture}
       \draw (0,0) node[name=sw]{} -- ++ (6,0) node[name=se]{};
@@ -1709,7 +1709,7 @@ For the best performance and stability, each RF trace should be fenced by two ro
 \colorlet{pcbcopper}{orange!30}
 \colorlet{pcbother}{lightgray!30}
 \colorlet{pcbother2}{cyan!25}
-\begin{figure}[!ht]
+\begin{figure}[!htb]
   \begin{center}
     \begin{tikzpicture}[z={(3.85mm, 6.5mm)}]
       \def\yfactor{0.75}
@@ -1816,7 +1816,7 @@ DATA
 
 Note that these csv files are first converted to a file with a format compatible for DRIFT processing by removing extraneous data and performing frequency unit conversions to MHz. For the sake of consistency with DRIFT nomenclature, a \textit{scan} is equivalent to a spectrum analyzer sweep whereas a \textit{reading} refers to a single pair of x-y points. Table~\ref{tab:driftdata} shows what fields are stored by DRIFT;\@ all fields are assumed to be scan-level metadata unless otherwise specified.
 
-\begin{table}[!ht]\rowcolors{1}{lightgray!30}{white}
+\begin{table}[!htb]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabularx}{\linewidth}{l|l|X}
       Field       & Required  & Description \\ \hline
@@ -1856,9 +1856,11 @@ ems,ems1,l,dbm,ems1-2025-03-28-0002,2025-03-28T11:49:55.199981+00:00,10000000,-7
 \end{figure}
 
 \subsection{RF-EMS Conduit Diagram}
-Figure~\ref{fig:oldems} shows two diagrams of the EMS lightning protection system from the 2001 NMT Senior Design report (VLA/VLBA Interference Memo \#19). This iteration had some notable differences such as an azimuth and elevation rotator, serial control lines, and metal-oxide varistors for lightning protection. None of these are used in this upgrade project but the diagrams may still be useful for characterizing conduit lines. Note that STS refers to the previous name for the RF-DFS - the Satellite Tracking System.
+Figure~\ref{fig:oldems} shows two diagrams of the EMS lightning protection system from the 2001 NMT Senior Design report (VLA/VLBA Interference Memo \#19). This iteration had some notable differences such as an azimuth and elevation rotator, serial control lines, and metal-oxide varistors for lightning protection. None of these are used in this upgrade project but the diagrams may still be useful for characterizing conduit lines, however, the conduit running to the STS at the base of the tower is confirmed to have been crushed/destroyed. 
 
-\begin{figure}[!ht]
+Note that STS refers to the previous name for the RF-DFS - the Satellite Tracking System.
+
+\begin{figure}[!htb]
   \begin{center}
     \includegraphics[width=0.8\textwidth]{images/oldems.png}
     \includegraphics[width=\textwidth]{images/oldems2.png}
