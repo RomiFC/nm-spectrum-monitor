@@ -14,8 +14,10 @@ import tomllib
 from pathlib import Path
 
 config = """
-[database]
-
+[automation]
+thread_max_workers = 1
+coalesce = true
+job_max_instances = 1
 
 [calibration]
 # Encoder home is the encoder position when the dish is parked (azimuth at true north, elevation straight up).
