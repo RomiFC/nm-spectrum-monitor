@@ -62,6 +62,9 @@ ZERO = 'zero'
 ROOT_PADX = 5
 ROOT_PADY = 5
 COLOR_GREEN = '#00ff00'
+SINGLE_ICON = '\u2192'
+CONT_ICON = '\u2B8C'
+RESTART_ICON = '\u2B6F'
 
 # STATE CONSTANTS
 class state:
@@ -867,12 +870,23 @@ class SpecAn(FrontEnd):
         self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # SWEEP BUTTONS
+        s.configure('Icon.TButton', font=cfg['theme']['icon_font'], justify=tk.CENTER)
         initButton = ttk.Button(spectrumFrame, text="Initialize", command=self.initAnalyzer)
         initButton.grid(row=2, column=1, sticky=NSEW)
-        self.sweepButton = ttk.Button(spectrumFrame, text="Single/Cont", command=lambda:self.sweepButtonHandler(action='toggle'))
-        self.sweepButton.grid(row=3, column=1, sticky=NSEW)
-        self.restartButton = ttk.Button(spectrumFrame, text='Restart', command=lambda:self.sweepButtonHandler(action='restart'))
-        self.restartButton.grid(row=4, column=1, sticky=NSEW)
+        sweepButtonFrame = tk.Frame(spectrumFrame)
+        sweepButtonFrame.grid(row=3, column=1, sticky=NSEW)
+        self.sweepButton = ttk.Button(sweepButtonFrame, text="Single/Cont", command=lambda:self.sweepButtonHandler(action='toggle'))
+        self.sweepButton.pack(expand=True, fill=BOTH, side=LEFT)
+        self.sweepIcon = ttk.Button(sweepButtonFrame, text = SINGLE_ICON, state=ENABLE, style='Icon.TButton', width=2)
+        self.sweepIcon.pack(side=RIGHT)
+        self.sweepIcon.bind('<Button>', 'break')
+        restartButtonFrame = tk.Frame(spectrumFrame)
+        restartButtonFrame.grid(row=4, column=1, sticky=NSEW)
+        self.restartButton = ttk.Button(restartButtonFrame, text=f'Restart', command=lambda:self.sweepButtonHandler(action='restart'))
+        self.restartButton.pack(expand=True, fill=BOTH, side=LEFT)
+        self.restartIcon = ttk.Button(restartButtonFrame, text = RESTART_ICON, state=ENABLE, style='Icon.TButton', width=2)
+        self.restartIcon.pack(side=RIGHT)
+        self.restartIcon.bind('<Button>', 'break')
 
         self.bindWidgets() 
 
@@ -955,7 +969,7 @@ class SpecAn(FrontEnd):
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
         _frames = (self.tab1, self.tab2, self.tab3, self.tab4, self.tab5)
-        _widgets = (self.sweepButton, self.restartButton)
+        _widgets = (self.sweepButton, self.restartButton, self.sweepIcon, self.restartIcon)
 
         if action == ENABLE:
             for frame in _frames:
@@ -974,15 +988,23 @@ class SpecAn(FrontEnd):
         Args:
             action (string): Can be 'toggle', or 'restart'
         """
-        with visaLock:
-            isContinuous = bool(self.Vi.openRsrc.query_ascii_values("INIT:CONT?")[0])
-            if action == 'toggle':
+        def do():
+            with visaLock:
+                isContinuous = bool(self.Vi.openRsrc.query_ascii_values("INIT:CONT?")[0])
+                if action == 'toggle':
+                    if isContinuous:
+                        self.Vi.openRsrc.write("INIT:CONT 0")
+                    else:
+                        self.Vi.openRsrc.write("INIT:CONT 1")
+                elif action == 'restart':
+                    self.Vi.openRsrc.write("INIT:IMM")
+                isContinuous = bool(self.Vi.openRsrc.query_ascii_values(":INIT:CONT?")[0])
                 if isContinuous:
-                    self.Vi.openRsrc.write("INIT:CONT 0")
+                    self.sweepIcon.configure(text=CONT_ICON)
                 else:
-                    self.Vi.openRsrc.write("INIT:CONT 1")
-            elif action == 'restart':
-                self.Vi.openRsrc.write("INIT:IMM")
+                    self.sweepIcon.configure(text=SINGLE_ICON)
+        thread = threading.Thread(target=do)
+        thread.start()
 
     def setAnalyzerPlotLimits(self, **kwargs):
         """Sets self.ax limits to parameters passed in **kwargs if they exist. If not, gets relevant widget values to set limits.
@@ -1694,6 +1716,8 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
 # Root tkinter interface (contains Front_End and standard output console)
 root = ThemedTk(theme=cfg['theme']['ttk'])
 root.title('New Mexico Spectrum Monitor Control')
+root.option_add('*TButton*takeFocus', 0)
+root.option_add('*TCombobox*takeFocus', 0)
 isNumWrapper = root.register(isNumber)
 
 # Change combobox highlight colors to match entry
