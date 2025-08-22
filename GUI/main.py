@@ -1959,13 +1959,13 @@ def generateAutoDialog():
         _endTime = datetime.strptime(_endTimeString, '%I:%M %p').time()
         _endDateTime = datetime.combine(_endDate, _endTime)
 
-        _intervalPicker = intervalPicker.time()
-        _intervalString = f'{_intervalPicker[0]}:{_intervalPicker[1]}'
-        _interval = datetime.strptime(_intervalString, '%H:%M').time()
-        _intervalDelta = timedelta(hours=_interval.hour, minutes=_interval.minute)
+        _intervalPicker = list(intervalPicker.time())
+        if _intervalPicker[0] == 0 and _intervalPicker[1] == 0: # workaround for tktimepicker not allowing 24 hours and 0 minutes
+            _intervalPicker[0] = 24
+        _intervalDelta = timedelta(hours=_intervalPicker[0], minutes=_intervalPicker[1])
 
         _indexDateTime = _startDateTime + _intervalDelta
-        while _indexDateTime < _endDateTime:
+        while _indexDateTime <= _endDateTime:
             with autoQueueLock:
                 automation.queue.append(_indexDateTime)
                 automation.queue.sort()
@@ -2020,6 +2020,11 @@ def generateAutoDialog():
     _frame2 = ttk.Frame(_notebook)
     _notebook.add(_frame1, text='Config', sticky=NSEW)
     _notebook.add(_frame2, text='Scripting')
+    _time = datetime.now()
+    _period = constants.AM
+    if _time.hour > 12:
+        _time.replace(hour=_time.hour - 12)
+        _period = constants.PM
     # Tab 1 (Config)
     configWidgetsFrame = ttk.Frame(_frame1, width=30)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
@@ -2044,9 +2049,11 @@ def generateAutoDialog():
     startLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
     startDatePicker = DateEntry(startDateFrame)
     startDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    startTimePicker = SpinTimePickerModern(startDateFrame)
+    startTimePicker = SpinTimePickerModern(startDateFrame, period=_period)
     startTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
     startTimePicker.addAll(constants.HOURS12)
+    startTimePicker.set12Hrs(_time.hour)
+    startTimePicker.setMins(_time.minute)
     sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     endDateFrame = ttk.Frame(configWidgetsFrame)
@@ -2057,9 +2064,11 @@ def generateAutoDialog():
     endLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
     endDatePicker = DateEntry(endDateFrame)
     endDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    endTimePicker = SpinTimePickerModern(endDateFrame)
+    endTimePicker = SpinTimePickerModern(endDateFrame, period=_period)
     endTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
     endTimePicker.addAll(constants.HOURS12)
+    endTimePicker.set12Hrs(_time.hour)
+    endTimePicker.setMins(_time.minute)
     sep3 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep3.grid(row=5, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     intervalFrame = ttk.Frame(configWidgetsFrame)
@@ -2071,6 +2080,8 @@ def generateAutoDialog():
     intervalPicker = SpinTimePickerModern(intervalFrame)
     intervalPicker.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     intervalPicker.addAll(constants.HOURS24)
+    intervalPicker.set24Hrs(0)
+    intervalPicker.setMins(0)
 
     addButton = ttk.Button(configWidgetsFrame, text="Generate", command=addDateTime)
     addButton.grid(row=7, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
