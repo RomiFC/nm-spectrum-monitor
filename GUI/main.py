@@ -1684,8 +1684,11 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
         match PLC.status:
             case opcodes.SLEEP.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
-                    FrontEnd.setStatus(button, background=FrontEnd.DEFAULT_BACKGROUND)
-                FrontEnd.setStatus(FrontEnd.sleepP1Button, background=FrontEnd.SELECT_BACKGROUND)
+                    if button is FrontEnd.sleepP1Button:
+                        background=FrontEnd.SELECT_BACKGROUND
+                    else:
+                        background=FrontEnd.DEFAULT_BACKGROUND
+                    FrontEnd.setStatus(button, background=background)
                 FrontEnd.chainSelect = 'SLEEP'
             case opcodes.P1_INIT.value:
                 FrontEnd.setStatus(FrontEnd.initP1Button, background=FrontEnd.SELECT_BACKGROUND)
@@ -1696,13 +1699,19 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
                 FrontEnd.chainSelect = 'SLEEP'
             case opcodes.DFS_CHAIN1.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
-                    FrontEnd.setStatus(button, background=FrontEnd.DEFAULT_BACKGROUND)
-                FrontEnd.setStatus(FrontEnd.dfs1Button, background=FrontEnd.SELECT_BACKGROUND)
+                    if button is FrontEnd.dfs1Button:
+                        background=FrontEnd.SELECT_BACKGROUND
+                    else:
+                        background=FrontEnd.DEFAULT_BACKGROUND
+                    FrontEnd.setStatus(button, background=background)
                 FrontEnd.chainSelect = 'DFS1'
             case opcodes.EMS_CHAIN1.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
-                    FrontEnd.setStatus(button, background=FrontEnd.DEFAULT_BACKGROUND)
-                FrontEnd.setStatus(FrontEnd.ems1Button, background=FrontEnd.SELECT_BACKGROUND)
+                    if button is FrontEnd.ems1Button:
+                        background=FrontEnd.SELECT_BACKGROUND
+                    else:
+                        background=FrontEnd.DEFAULT_BACKGROUND
+                    FrontEnd.setStatus(button, background=background)
                 FrontEnd.chainSelect = 'EMS1'
                 
         match automation.state:
