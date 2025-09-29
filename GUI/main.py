@@ -1837,7 +1837,7 @@ def redirector(inputStr):           # Redirect print/logging statements to the c
         inputStr (string): String to print/log from sys.stdout.write and sys.stderr.write
     """
     console.config(state=NORMAL)
-    console.insert(INSERT, inputStr)
+    console.insert(END, inputStr)
     console.yview(MOVETO, 1)
     console.config(state=DISABLED)
 
