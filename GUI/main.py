@@ -5,6 +5,8 @@ from timestamp import *
 from opcodes import *
 from loggingsetup import *
 from automation import *
+from drift import *
+from waterfall import *
 
 # OTHER MODULES
 import threading
