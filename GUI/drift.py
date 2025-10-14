@@ -7,19 +7,35 @@ from tracedata import *
 tracesToProcess = []
 
 def makeDriftDir(path):
+    """Checks if a folder called `DRIFT` exists in `path`, creates it if it does not exist.
+
+    Args:
+        path (string): File path to make DRIFT directory in.
+
+    Returns:
+        string: Path to drift directory or `None` if there is an error creating it.
+    """
     # Check if DRIFT Directory exists, create it if it does not
     if path is not None:
         path = os.getcwd()
     driftdir = os.path.join(path, 'DRIFT')
     try:
         os.mkdir(driftdir)
-        logging.info(f"Folder 'DRIFT' created successfully in the current working directory.")
-    except FileExistsError:
-        pass
+        logging.drift(f"Folder 'DRIFT' created successfully in the current working directory.")
+    except FileExistsError as e:
+        logging.drift(f'{type(e).__name__}: {e}')
     except OSError as e:
-        logging.info(f"Error creating folder: {e}")
+        logging.drift(f"Error creating folder: {e}")
+        return None
+    return driftdir
 
 def toDriftFormat(tracePath, driftPath):
+    """Converts the trace csv files in `tracePath` to DRIFT compatible format and writes them in `driftPath`
+
+    Args:
+        tracePath (string): File path to search for trace csv's
+        driftPath (string): File path to write DRIFT compatible csv's in
+    """
     # import data
     trace_files = getAllCsvFiles(tracePath)
     drift_files = getAllCsvFiles(driftPath)

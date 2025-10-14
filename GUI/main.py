@@ -16,7 +16,9 @@ from datetime import date, datetime, timedelta, timezone
 import datetime as dt
 from pyvisa import attributes
 import numpy as np
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.triggers.cron import CronTrigger
 import logging
 import decimal
 import traceback
@@ -67,6 +69,15 @@ COLOR_GREEN = '#00ff00'
 SINGLE_ICON = '\u2192'
 CONT_ICON = '\u2B8C'
 RESTART_ICON = '\u2B6F'
+DEF_WF_PATH = os.getcwd()
+DEF_WF_THRESHOLD = 100
+DEF_WF_TZ = 'US/Mountain'
+DEF_WF_FILETYPE = '.png'
+DEF_WF_DPI = 800
+WATERFALL_JOB_ID = 'waterfall'
+DEF_DRIFT_FROM_PATH = os.getcwd()
+DEF_DRIFT_TO_PATH = os.getcwd()
+DRIFT_JOB_ID = 'driftprocessing'
 
 # STATE CONSTANTS
 class state:
@@ -118,8 +129,10 @@ job_defaults = {
     'coalesce': cfg['automation']['coalesce'],
     'max_instances': cfg['automation']['job_max_instances']
 }
-
 automation = Automation(defaultstate=state.IDLE, executors=executors, job_defaults=job_defaults)
+
+# DRIFT/WATERFALL SCHEDULER
+dwfScheduler = BackgroundScheduler()
 
 # SPECTRUM ANALYZER PARAMETERS
 class Parameter:
@@ -1956,7 +1969,7 @@ def generateAutoDialog():
         logging.info('Cannot edit queue while task scheduler is active.')
         return
 
-    def addDateTime():
+    def _addDateTime():
         _startDate = startDatePicker.get_date()
         _endDate = endDatePicker.get_date()
 
@@ -1986,38 +1999,38 @@ def generateAutoDialog():
         for i in range(0,len(automation.queue),2):
             queueListbox.itemconfigure(i, background='#f0f0ff')
     
-    def removeDateTime():
+    def _removeDateTime():
         with autoQueueLock:
             automation.queue.clear()
             _listVar.set(automation.queue)
 
-    def pickFilePath():
+    def _presetButtonHandler(string):
+        saveButton.configure(state=NORMAL)
+        clearAndSetWidget(textBox, string)
+
+    def _lastSavedButtonHandler():
+        clearAndSetWidget(textBox, automation.textBoxString)
+        saveButton.configure(state=DISABLED)
+
+    def _saveButtonStateHandler(event):
+        saveButton.configure(state=NORMAL)
+    
+    def _saveAutomationFunctions(string):
+        automation.textBoxString = string
+        exec(string, globals())
+        saveButton.configure(state=DISABLED)
+
+    def _onTab(event:tk.Event) -> str:
+        textBox.insert("insert", " "*4)
+        return "break"
+    
+    def _pickFilePath(entry):
         dir = filedialog.askdirectory()
         if dir is None:
             return
         with autoQueueLock:
             automation.filePath = dir
-        clearAndSetWidget(pathEntry, dir)
-
-    def presetButtonHandler(string):
-        saveButton.configure(state=NORMAL)
-        clearAndSetWidget(textBox, string)
-
-    def lastSavedButtonHandler():
-        clearAndSetWidget(textBox, automation.textBoxString)
-        saveButton.configure(state=DISABLED)
-
-    def saveButtonStateHandler(event):
-        saveButton.configure(state=NORMAL)
-    
-    def saveAutomationFunctions(string):
-        automation.textBoxString = string
-        exec(string, globals())
-        saveButton.configure(state=DISABLED)
-
-    def onTab(event:tk.Event) -> str:
-        textBox.insert("insert", " "*4)
-        return "break"
+        clearAndSetWidget(entry, dir)
 
     # Toplevel and notebook
     _parent = Toplevel()
@@ -2048,7 +2061,7 @@ def generateAutoDialog():
     pathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
     pathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     clearAndSetWidget(pathEntry, automation.filePath)
-    pathPicker = ttk.Button(pathFrame, text='Browse...', command=pickFilePath)
+    pathPicker = ttk.Button(pathFrame, text='Browse...', command = lambda: _pickFilePath(pathEntry))
     pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
     sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
@@ -2094,9 +2107,9 @@ def generateAutoDialog():
     intervalPicker.set24Hrs(0)
     intervalPicker.setMins(0)
 
-    addButton = ttk.Button(configWidgetsFrame, text="Generate", command=addDateTime)
+    addButton = ttk.Button(configWidgetsFrame, text="Generate", command=_addDateTime)
     addButton.grid(row=7, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
-    removeButton = ttk.Button(configWidgetsFrame, text="Clear", command=removeDateTime)
+    removeButton = ttk.Button(configWidgetsFrame, text="Clear", command=_removeDateTime)
     removeButton.grid(row=7, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
 
     queueListbox = tk.Listbox(_frame1, listvariable=_listVar)
@@ -2110,17 +2123,17 @@ def generateAutoDialog():
     presetsFrame.grid(row=0, column=0, sticky=NSEW)
     textBox = tk.Text(_frame2, width=120)
     textBox.grid(row=0, column=1, sticky=NSEW)
-    textBox.bind("<Tab>", onTab)
+    textBox.bind("<Tab>", _onTab)
     clearAndSetWidget(textBox, automation.textBoxString)
-    button1 = ttk.Button(presetsFrame, text='Default', command=lambda: presetButtonHandler(automation.presets.default))
+    button1 = ttk.Button(presetsFrame, text='Default', command=lambda: _presetButtonHandler(automation.presets.default))
     button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
-    button2 = ttk.Button(presetsFrame, text='Clear/Write', command=lambda: presetButtonHandler(automation.presets.clearwrite))
+    button2 = ttk.Button(presetsFrame, text='Clear/Write', command=lambda: _presetButtonHandler(automation.presets.clearwrite))
     button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
-    button3 = ttk.Button(presetsFrame, text='Average', command=lambda: presetButtonHandler(automation.presets.average))
+    button3 = ttk.Button(presetsFrame, text='Average', command=lambda: _presetButtonHandler(automation.presets.average))
     button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
-    button4 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: presetButtonHandler(automation.presets.maxhold))
+    button4 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: _presetButtonHandler(automation.presets.maxhold))
     button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
-    button5 = ttk.Button(presetsFrame, text='Min Hold', command=lambda: presetButtonHandler(automation.presets.minhold))
+    button5 = ttk.Button(presetsFrame, text='Min Hold', command=lambda: _presetButtonHandler(automation.presets.minhold))
     button5.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
 
     for i in range(7):
@@ -2128,11 +2141,11 @@ def generateAutoDialog():
     presetsFrame.rowconfigure(5, weight=1)
     emptySpace = ttk.Frame(presetsFrame)
     emptySpace.grid(row=5, column=0, sticky=NSEW)
-    lastSavedButton = ttk.Button(presetsFrame, text='Load Last Saved', command=lambda: lastSavedButtonHandler())
+    lastSavedButton = ttk.Button(presetsFrame, text='Load Last Saved', command=lambda: _lastSavedButtonHandler())
     lastSavedButton.grid(row=6, column=0, sticky=NSEW, padx=5, pady=5)
-    saveButton = ttk.Button(presetsFrame, text='Save Changes', command=lambda: saveAutomationFunctions(textBox.get(1.0, "end-1c")), state=DISABLED)
+    saveButton = ttk.Button(presetsFrame, text='Save Changes', command=lambda: _saveAutomationFunctions(textBox.get(1.0, "end-1c")), state=DISABLED)
     saveButton.grid(row=7, column=0, sticky=NSEW, padx=5, pady=5)
-    textBox.bind('<KeyRelease>', saveButtonStateHandler)
+    textBox.bind('<KeyRelease>', _saveButtonStateHandler)
 
 def autoStartStop():
     """If the automation scheduler is active, pauses it and removes all jobs. If it is paused, add all jobs in automation.queue and resume.
@@ -2157,6 +2170,199 @@ def autoStartStop():
                 job.remove()
 
             automation.state = state.IDLE
+
+def generateDriftDialog():
+    global DEF_DRIFT_TO_PATH
+    # If the DRIFT directory has already been created, update DEF_DRIFT_TO_PATH with that value 
+    if DEF_DRIFT_FROM_PATH == DEF_DRIFT_TO_PATH:
+        _toPath = os.path.join(DEF_DRIFT_FROM_PATH, 'DRIFT')
+        if os.path.isdir(_toPath):
+            DEF_DRIFT_TO_PATH = _toPath
+
+    def _scheduleDrift(now=False):
+        global DEF_DRIFT_FROM_PATH, DEF_DRIFT_TO_PATH
+        _fromPath = fromPathEntry.get()
+        _toPath = toPathEntry.get()
+        DEF_DRIFT_FROM_PATH = _fromPath
+        DEF_DRIFT_TO_PATH = _toPath
+        args = (_fromPath, _toPath)
+        if now:
+            thread = threading.Thread(target=toDriftFormat, args=args, daemon=True)
+            thread.start()
+            return
+        _jobTimePicker = intervalPicker.time()
+        _jobTimeString = f'{_jobTimePicker[0]}:{_jobTimePicker[1]} {_jobTimePicker[2]}'
+        _jobTime = datetime.strptime(_jobTimeString, '%I:%M %p').time()
+        # Check if job is active
+        _clearScheduler()
+        # Add scheduled cron job
+        dwfScheduler.add_job(toDriftFormat, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=DRIFT_JOB_ID, name='Convert to DRIFT Format')
+
+    def _clearScheduler():
+        if dwfScheduler.get_job(DRIFT_JOB_ID):
+            dwfScheduler.remove_job(DRIFT_JOB_ID)
+
+    def _pickFilePath(entry):
+        dir = filedialog.askdirectory()
+        if not dir:
+            return
+        clearAndSetWidget(entry, dir)
+
+    def _makeDriftDir():
+        driftdir = makeDriftDir(fromPathEntry.get())
+        if driftdir:
+            clearAndSetWidget(toPathEntry, driftdir)
+
+    _parent = Toplevel()
+    _parent.title('DRIFT Processing')
+    _parent.resizable(False, False)
+    configWidgetsFrame = ttk.Frame(_parent, width=30)
+    configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    pathFrame = ttk.Frame(configWidgetsFrame)
+    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    pathFrame.columnconfigure(0, weight=0)
+    pathFrame.columnconfigure(1, weight=1)
+    fromPathLabel = ttk.Label(pathFrame, text='Trace Directory:')
+    fromPathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    fromPathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
+    fromPathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(fromPathEntry, DEF_DRIFT_FROM_PATH)
+    fromPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(fromPathEntry))
+    fromPathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    toPathLabel = ttk.Label(pathFrame, text='DRIFT Destination Directory:')
+    toPathLabel.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    toPathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
+    toPathEntry.grid(row=3, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(toPathEntry, DEF_DRIFT_TO_PATH)
+    toPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(toPathEntry))
+    toPathPicker.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    makeDirButton = ttk.Button(pathFrame, text="Make DRIFT Directory in Current Working Directory", command=_makeDriftDir)
+    makeDirButton.grid(row=4, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    paramsFrame = ttk.Frame(configWidgetsFrame)
+    paramsFrame.grid(row = 2, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    paramsFrame.columnconfigure(0, weight=1)
+    paramsFrame.columnconfigure(1, weight=1)
+    intLabel = ttk.Label(paramsFrame, text='Run every day at:')
+    intLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    intervalPicker = SpinTimePickerModern(paramsFrame, period=constants.AM)
+    intervalPicker.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker.addAll(constants.HOURS12)
+    intervalPicker.set12Hrs(1)
+    intervalPicker.setMins(10)
+    sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    buttonFrame = ttk.Frame(configWidgetsFrame)
+    buttonFrame.grid(row = 4, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    buttonFrame.columnconfigure(0, weight=1)
+    buttonFrame.columnconfigure(1, weight=1)
+    scheduleButton = ttk.Button(buttonFrame, text="Schedule Job", command=_scheduleDrift)
+    scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
+    clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleDrift(now=True))
+    nowButton.grid(row=1, column=1, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+
+def generateWaterfallDialog():
+    _fileTypes = ('.png', '.jpg', '.pdf', '.svg')
+
+    def _scheduleWaterfall(now=False):
+        global DEF_WF_PATH, DEF_WF_THRESHOLD, DEF_WF_TZ, DEF_WF_FILETYPE, DEF_WF_DPI
+        _path = pathEntry.get()
+        _threshold = int(thEntry.get())
+        _timezone = tzCombo.get()
+        _filetype = ftCombo.get()
+        _dpi = int(dpiEntry.get())
+        args = (_path, _threshold, _timezone, _filetype, _dpi)
+        DEF_WF_PATH = _path
+        DEF_WF_THRESHOLD = _threshold
+        DEF_WF_TZ = _timezone
+        DEF_WF_FILETYPE = _filetype
+        DEF_WF_DPI = _dpi
+        if now:
+            thread = threading.Thread(target=makeWaterfalls, args=args, daemon=True)
+            thread.start()
+            return
+        _jobTimePicker = intervalPicker.time()
+        _jobTimeString = f'{_jobTimePicker[0]}:{_jobTimePicker[1]} {_jobTimePicker[2]}'
+        _jobTime = datetime.strptime(_jobTimeString, '%I:%M %p').time()
+        # Check if job is active
+        _clearScheduler()
+        # Add scheduled cron job
+        dwfScheduler.add_job(makeWaterfalls, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=WATERFALL_JOB_ID, name='Generate Waterfall Plot')
+
+    def _clearScheduler():
+        if dwfScheduler.get_job(WATERFALL_JOB_ID):
+            dwfScheduler.remove_job(WATERFALL_JOB_ID)
+
+    def _pickFilePath(entry):
+        dir = filedialog.askdirectory()
+        if not dir:
+            return
+        clearAndSetWidget(entry, dir)
+
+    _parent = Toplevel()
+    _parent.title('Waterfall Plot Utility')
+    _parent.resizable(False, False)
+    configWidgetsFrame = ttk.Frame(_parent, width=30)
+    configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    pathFrame = ttk.Frame(configWidgetsFrame)
+    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    pathFrame.columnconfigure(0, weight=0)
+    pathFrame.columnconfigure(1, weight=1)
+    pathLabel = ttk.Label(pathFrame, text='File Path:')
+    pathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    pathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
+    pathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(pathEntry, DEF_WF_PATH)
+    pathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(pathEntry))
+    pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    paramsFrame = ttk.Frame(configWidgetsFrame)
+    paramsFrame.grid(row = 2, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    paramsFrame.columnconfigure(0, weight=1)
+    paramsFrame.columnconfigure(1, weight=1)
+    tzLabel = ttk.Label(paramsFrame, text='Timezone:')
+    tzLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    tzCombo = ttk.Combobox(paramsFrame, values=pytz.common_timezones, state='readonly')
+    tzCombo.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(tzCombo, DEF_WF_TZ)
+    thLabel = ttk.Label(paramsFrame, text='Threshold:')
+    thLabel.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    thEntry = ttk.Entry(paramsFrame, validate='key', validatecommand=(isNumWrapper, '%P'))
+    thEntry.grid(row=1, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(thEntry, DEF_WF_THRESHOLD)
+    ftLabel = ttk.Label(paramsFrame, text='File Type:')
+    ftLabel.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    ftCombo = ttk.Combobox(paramsFrame, values=_fileTypes, state='readonly')
+    ftCombo.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(ftCombo, DEF_WF_FILETYPE)
+    dpiLabel = ttk.Label(paramsFrame, text='DPI:')
+    dpiLabel.grid(row=3, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    dpiEntry = ttk.Entry(paramsFrame, validate='key', validatecommand=(isNumWrapper, '%P'))
+    dpiEntry.grid(row=3, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(dpiEntry, DEF_WF_DPI)
+    intLabel = ttk.Label(paramsFrame, text='Run every day at:')
+    intLabel.grid(row=4, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    intervalPicker = SpinTimePickerModern(paramsFrame, period=constants.AM)
+    intervalPicker.grid(row=4, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker.addAll(constants.HOURS12)
+    intervalPicker.set12Hrs(1)
+    intervalPicker.setMins(0)
+    sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    buttonFrame = ttk.Frame(configWidgetsFrame)
+    buttonFrame.grid(row = 4, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    buttonFrame.columnconfigure(0, weight=1)
+    buttonFrame.columnconfigure(1, weight=1)
+    scheduleButton = ttk.Button(buttonFrame, text="Schedule Job", command=_scheduleWaterfall)
+    scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
+    clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleWaterfall(now=True))
+    nowButton.grid(row=1, column=1, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
 evalCheckbutton.configure(command=checkbuttonStateHandler)
 execCheckbutton.configure(command=checkbuttonStateHandler)
@@ -2190,6 +2396,7 @@ Azi_Ele = AziElePlot(Motor, Front_End.directionFrame)
 statusMonitorThread = threading.Thread(target=statusMonitor, args = (Front_End, Vi, Motor, Relay, Azi_Ele), daemon=True)
 statusMonitorThread.start()
 automation.scheduler.start(paused=True)
+dwfScheduler.start()
 Spec_An.analyzerDisplayLoopthread.start()
 
 
@@ -2207,9 +2414,11 @@ menubar = Menu(root)
 root['menu'] = menubar
 menuFile = Menu(menubar)
 menuOptions = Menu(menubar)
+menuRun = Menu(menubar)
 menuHelp = Menu(menubar)
 menubar.add_cascade(menu=menuFile, label='File')
 menubar.add_cascade(menu=menuOptions, label='Options')
+menubar.add_cascade(menu=menuRun, label='Run')
 menubar.add_cascade(menu=menuHelp, label='Help')
 
 # File
@@ -2232,6 +2441,10 @@ menuOptions.add_separator()
 menuOptions.add_radiobutton(label='Logging: Standard', variable = tkLoggingLevel, command = lambda: loggingLevelHandler(tkLoggingLevel.get()), value = 1)
 menuOptions.add_radiobutton(label='Logging: Verbose', variable = tkLoggingLevel, command = lambda: loggingLevelHandler(tkLoggingLevel.get()), value = 2)
 menuOptions.add_radiobutton(label='Logging: Debug', variable = tkLoggingLevel, command = lambda: loggingLevelHandler(tkLoggingLevel.get()), value = 3)
+
+# Run
+menuRun.add_command(label='DRIFT Processing', command = generateDriftDialog)
+menuRun.add_command(label='Waterfall Plot Utility', command=generateWaterfallDialog)
 
 # Help
 menuHelp.add_command(label='Open wiki...', command=Front_End.openHelp)

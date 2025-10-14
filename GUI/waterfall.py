@@ -67,20 +67,21 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
         for receiver in receiversToProcess:
             # Make directory for specific receiver/date combination
             dirName = f'{receiver}-{dateToProcess}-WATERFALL'
-            moveToDir = os.path.join(os.getcwd(), dirName)
+            moveToDir = os.path.join(path, dirName)
             try:
                 os.mkdir(moveToDir)
-                logging.info(f"Folder '{dirName}' created successfully in the current working directory.")
+                logging.waterfall(f"Folder '{dirName}' created successfully in the current working directory.")
             except FileExistsError:
                 pass
             except OSError as e:
-                logging.info(f"Error creating folder: {e}")
+                logging.waterfall(f"Error creating folder: {e}")
             # Iterate through all csv file names, if they match date and receiver, parse them
             for file_name in trace_files:
                 hasDate = re.search(DATE_REGEX, file_name)
                 csvDate = hasDate.group(1)
                 if csvDate == dateToProcess and file_name.split('-')[0] == receiver:
-                    df = pd.read_csv(file_name, header=None)
+                    file_name_joined = os.path.join(path, file_name)
+                    df = pd.read_csv(file_name_joined, header=None)
                     trace = Trace(df, file_name)
                     if len(x) == 0: # If this is the first element for this date, use its parameters for the dimensions of x/y/z
                         x.append(trace.data.iloc[:, 0].astype(float))
@@ -90,15 +91,15 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
                     dt = datetime.fromisoformat(trace.header.loc['Time'].item()).astimezone(TIMEZONE)
                     y.append(dt)
                     # move the csv to its own directory
-                    file_path = os.path.join(os.getcwd(), file_name)
                     try:
-                        shutil.move(file_path, moveToDir)
+                        shutil.move(file_name_joined, moveToDir)
                     except FileNotFoundError:
-                        print(f"Error: The source file '{file_path}' was not found.")
+                        print(f"Error: The source file '{file_name_joined}' was not found.")
                     except PermissionError:
-                        print(f"Error: Permission denied to move '{file_path}'.")
+                        print(f"Error: Permission denied to move '{file_name_joined}'.")
                     except Exception as e:
                         print(f"An unexpected error occurred: {e}")
+            savefigpath = os.path.join(path, dirName + filetype)
             # plot
             fig, ax = plt.subplots(layout='constrained')
             mesh = ax.pcolormesh(x, y, z, shading='nearest', vmin=-80, vmax=-30)
@@ -112,6 +113,8 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
             ax.yaxis.set_major_formatter(mdates.DateFormatter('%H:%M', tz=TIMEZONE))
             ax.invert_yaxis()
             plt.colorbar(mesh, label='Magnitude (dBm)')
-            plt.savefig(f'{dirName} + {filetype}', dpi=dpi)
-            # plt.show()
+            plt.savefig(savefigpath, dpi=dpi)
+            logging.waterfall(f'File {dirName + filetype} successfully saved to {path}')
         datesToProcess.remove(dateToProcess)
+
+    logging.waterfall('No more plots to generate.')
