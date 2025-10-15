@@ -199,6 +199,17 @@ SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
 TimeParameter   = Parameter('Time', None)
 
 # real code starts here
+def threadHandler(target, args=(), kwargs={}):
+    """Generates a new daemon thread to handle blocking routines without blocking main thread.
+
+    Args:
+        target (method): Callable object to be invoked by the run() method.
+        args (tuple, optional): List or tuple for target invocation. Defaults to ().
+        kwargs (dict, optional): Dictionary of keyword arguments for target invocation. Defaults to {}.
+    """
+    thread = threading.Thread(target = target, args = args, kwargs = kwargs, daemon=True)
+    thread.start()
+
 def isNumber(input):
     """is it a number
 
@@ -1873,7 +1884,8 @@ def openSaveDialog(type):
     if type == 'trace':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Comma separated variables', '*.csv'), ('Text File (Tab delimited)', '*.txt'), ('All Files', '*.*')), defaultextension='.csv')
         if file is not None:
-            saveTrace(f=file)
+            thread = threading.Thread(saveTrace, args=(file,))
+            thread.start()
     elif type == 'log':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Text Files', '*.txt'), ('All Files', '*.*')), defaultextension='.txt')
         if file is not None:
@@ -1882,11 +1894,10 @@ def openSaveDialog(type):
     elif type == 'image':
         filename = filedialog.asksaveasfilename(initialdir = os.getcwd(), filetypes=(('JPEG', '*.jpg'), ('PNG', '*.png')), defaultextension='.jpg')
         if filename != '':
-            with specPlotLock:
-                Spec_An.fig.savefig(filename)
+            Spec_An.fig.savefig(filename)
 
 def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
-    """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found.
+    """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found. This function is blocking and should only be called outside of the main thread.
 
     Args:
         f (file, optional): File object to save to. Defaults to None.
@@ -2422,7 +2433,7 @@ menubar.add_cascade(menu=menuRun, label='Run')
 menubar.add_cascade(menu=menuHelp, label='Help')
 
 # File
-menuFile.add_command(label='Quicksave trace', command = lambda: saveTrace(filePath=os.getcwd()))
+menuFile.add_command(label='Quicksave trace', command = lambda: threadHandler(saveTrace, kwargs={'filePath': os.getcwd()}))
 menuFile.add_separator()
 menuFile.add_command(label='Save trace', command = lambda: openSaveDialog(type='trace'))
 menuFile.add_command(label='Save log', command = lambda: openSaveDialog(type='log'))
