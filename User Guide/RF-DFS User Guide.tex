@@ -1782,9 +1782,9 @@ For the best performance and stability, each RF trace should be fenced by two ro
 \end{figure}
 
 \subsection{DRIFT Integration}\label{sec:drift}
-The Dynamic Radio Interference Finding Tool (DRIFT) is an Electromagnetic Spectrum Management project intended to be an external-facing, web-based interface to visualize RFI data from various sites including VLA, GBT, VLBA, CHIME, ASM-2, and the RF-DFS/EMS.\@
+The Dynamic Radio Interference Finding Tool (DRIFT) is an Electromagnetic Spectrum Management project intended to be an external-facing, web-based interface to visualize RFI data from various sites including VLA, GBT, VLBA, CHIME, ASM-2, and the NMSM.\@
 
-Sweeps collected in \verb|AUTO| mode will also be automatically uploaded to the DRIFT database whereas \verb|MANUAL| sweeps can only be saved to the local machine. These sweeps are saved in a csv format that mimics those saved locally on the N9040B, containing lines of parameters with their values separated by commas as shown in Figure~\ref{fig:csvexample}.
+Sweeps are saved in a csv format that mimics those saved locally on the N9040B, containing lines of parameters with their values separated by commas as shown in Figure~\ref{fig:csvexample}. These sweeps can be converted to the DRIFT format by using the \lstinline|DRIFT Processing| utlity, accessed from the ribbon on the top left of the interface. The user can convert a directory of traces from the local format to the DRIFT format immediately or schedule it to be done daily at a certain time. Once DRIFT is running in a closed-access build, this document will be updated with the process for uploading files to DRIFT.\@
 
 \begin{figure}[ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt]
@@ -1813,13 +1813,13 @@ DATA
 \caption{Example Trace CSV.}\label{fig:csvexample}
 \end{figure}
 
-Note that these csv files are first converted to a file with a format compatible for DRIFT processing by removing extraneous data and performing frequency unit conversions to MHz. For the sake of consistency with DRIFT nomenclature, a \textit{scan} is equivalent to a spectrum analyzer sweep whereas a \textit{reading} refers to a single pair of x-y points. Table~\ref{tab:driftdata} shows what fields are stored by DRIFT;\@ all fields are assumed to be scan-level metadata unless otherwise specified.
+These csv files are converted to a format compatible for DRIFT processing by removing extraneous data and performing frequency unit conversions to MHz. For the sake of consistency with DRIFT nomenclature, a \textit{scan} is equivalent to a spectrum analyzer sweep whereas a \textit{reading} refers to a single pair of x-y points. Table~\ref{tab:driftdata} shows what fields are stored by DRIFT;\@ all fields are assumed to be scan-level metadata unless otherwise specified.
 
 \begin{table}[!htb]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
     \begin{tabularx}{\linewidth}{l|l|X}
       Field       & Required  & Description \\ \hline
-      \lstinline|instrument|    & Yes & Unique identifier for instrument or device (VLA, VLBA-PT, VLBA-LA, RF-DFS, RF-EMS, etc.) per scan.\\
+      \lstinline|instrument|    & Yes & Unique identifier for instrument or device (VLA, VLBA-PT, VLBA-LA, NMSM, etc.) per scan.\\
       \lstinline|receiver|      & Yes & DRIFT will have a separate list of receivers for each instrument (DFS1, EMS1, etc.). \\
       \lstinline|polarization|  & Yes & Hardcoded for NM spectrum monitoring devices (EMS is linear vertical, DFS is unknown.)\\
       \lstinline|intensity_unit|& Yes & Hardcoded for NM spectrum monitoring devices (dBm). \\
@@ -1830,6 +1830,7 @@ Note that these csv files are first converted to a file with a format compatible
       \lstinline|configuration| & No  & Selected from hardcoded list (VLA configurations, not relevant to NM spectrum monitoring devices).\\
       \lstinline|instrument_lat|& No  & ASM-2 devices only, other instruments have their locations hardcoded.\\
       \lstinline|instrument_long|&No  & ASM-2 devices only, other instruments have their locations hardcoded.\\
+      \lstinline|spw_id|        & No  & Spectral window - only useful for detecting baseband overlaps in instruments like the VLA or GBT.\\
       \lstinline|frequency|     & Yes & Primary independent variable (reading-level), supplied in MHz.\\
       \lstinline|intensity|     & Yes & Primary dependent variable (reading-level), supplied in \lstinline|intensity_unit|.\\
       \lstinline|reading_az|    & No  & Azimuth for a specific reading in decimal degrees (ASM-2 only).\\
@@ -1844,7 +1845,7 @@ DRIFT's upload format requires that csv files have their top row populated with 
 \begin{figure}[ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt]
 instrument,receiver,polarization,intensity_unit,scan_name,scan_datetime,frequency,intensity
-ems,ems1,l,dbm,ems1-2025-03-28-0002,2025-03-28T11:49:55.199981+00:00,10000000,-71.1912847253302
+NMSM,EMS1,LV,dBm,EMS1-2025-03-28-AVG-D,2025-03-28T11:49:55.199981+00:00,10000000,-71.1912847253302
 ,,,,,,21990000,-105.183861324451
 ,,,,,,33980000,-72.2399984094122
 \end{lstlisting}
