@@ -476,18 +476,13 @@ class FrontEnd():
             widget.configure(text=text)
         if background is not None:
             widget.configure(background=background)
-
     
     def onExit( self ):
-        """Ask to close serial communication when 'X' button is pressed. *do we need this?"""
-        SaveCheck = messagebox.askokcancel( title = "Window closing", message = "Do you want to close communication to the motor?" )
-        if SaveCheck is True:      
-            while (self.motor.ser.is_open):
-                self.motor.CloseSerial()
-            root.quit()
-            logging.info("Program executed with exit code: 0")
-        else:
-            pass
+        """Cleanup""" 
+        while (self.motor.ser.is_open):
+            self.motor.CloseSerial()
+        root.quit()
+        logging.info("Program executed with exit code: 0")
 
     def openHelp(self):
         """Opens help menu on a new toplevel window.
@@ -495,7 +490,6 @@ class FrontEnd():
         continueCheck = messagebox.askokcancel(title='Open wiki', message='This will open a new web browser page. Continue?')
         if continueCheck:
             webbrowser.open('https://github.com/RomiFC/RF-DFS/wiki')
-        
 
     def openConfig(self):
         """Opens configuration menu on a new toplevel window.
@@ -2409,7 +2403,6 @@ statusMonitorThread.start()
 automation.scheduler.start(paused=True)
 dwfScheduler.start()
 Spec_An.analyzerDisplayLoopthread.start()
-
 
 # Bind FrontEnd buttons to methods
 Front_End.standbyButton.configure(command = lambda: Azi_Ele.setState(state.IDLE))
