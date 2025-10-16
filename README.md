@@ -1,6 +1,6 @@
-# :satellite: Radio Frequency Direction Finding System
+# :satellite: New Mexico Spectrum Monitor
 
-The RF-DFS is a movable 3-meter dish antenna with azimuth and elevation drivers to locate the source of RF interference. This project combines the function of the DFS with the RF - Environmental Monitoring System; a similar utility that is built off of an effectively isotropic antenna. Both RF chains are connected to a Keysight N9040B Spectrum Analyzer and are controlled by a Python GUI.
+The NMSM is a tool utilized by the NRAO-NM Interference Protection Group to identify and locate RF interference at the Very Large Array. It combines two previously separate systems: the Radio Frequency - Direction Finding System (RF-DFS) and Environmental Monitoring System (RF-EMS) into one combined spectrum monitor with omnidirectional and directional capabilities. The former is a 3-meter dish antenna with azimuth and elevation drives whereas the latter is a 50-foot tower with a nominally 0 dBi club antenna. Both RF chains are connected to a Keysight N9040B Spectrum Analyzer and are controlled by a Python GUI.
 
 **Hardware:** Automation Direct P1AM-100 PLC with 15-point discrete output module, Parker Hannifin ACR9000 Motion Controller, 2 Aries AR-04AE Servo Drives, Keysight N9040B Spectrum Analyzer, and a Windows computer.
 
@@ -82,7 +82,15 @@ pip install numpy
 ```
 
 ```bash
+pip install pandas
+```
+
+```bash
 pip install apscheduler
+```
+
+```bash
+pip install pytz
 ```
 
 ```bash
