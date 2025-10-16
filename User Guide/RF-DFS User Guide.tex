@@ -642,6 +642,7 @@ The major components located in the RFI shack are as follows:
     \item Two L-com AL-CAT6AJW CAT6a lightning protectors
   \end{enumerate}
   \item One Lockout-Tagout Switch
+  \item One Condor MB24-1.2-AG 24V 1.2A linear power supply
 \end{enumerate}
 
 \begin{figure}[!htb]
@@ -806,14 +807,17 @@ The major components located in the RFI shack are as follows:
         \draw(plc-6-3.south west) -- (plc-6-1 -| 3e) -- (lps-5-2 -| 5e) node[circ](asdf){} -- (lps-5-1.south east);
         \draw(asdf) -- (lps-4-2 -| 5e) -- (lps-4-1.south east);
         % plc to shack switch
-        \draw(plc-10-3.south west) -- (plc-10-3.south west -| m) node[circ](v2circ){} -- (shackswitch-1-1.south east -| m) -- (shackswitch-1-1.south east);
+        \draw(plc-10-3.south west) -- (plc-10-3.south west -| m) node[circ](v2circ){} -- (shackswitch-1-1.south east -| m) node[circ](v2circ2){} -- (shackswitch-1-1.south east);
         \draw(plc-11-3.south west) -- (plc-11-3.south west -| 5e) -- (shackswitch-3-1.south east -| lps.east) -- (shackswitch-3-1.south east);
         \draw(plc-12-3.south west) -- (plc-12-3.south west -| 5e) -- (shackswitch-4-1.south east -| lps.east) -- (shackswitch-4-1.south east);
+        \draw(plc-1-3.south west) -- (plc-1-3.south west -| m) -- (v2circ);
+        \draw(v2circ2)[->] -- (v2circ2 |- plc-17-3.south west) -- (plc-17-3.south west -| 5e) coordinate(topower+) node[anchor=west]{\footnotesize To MB24-1.2-AG +24V};
         % plc ground wires
-        \draw(plc-18-3.south west) -- (plc-18-3.south west -| 3e) -- (shackswitch-2-1.south east -| 3e) node[circ=1pt](gndnode1){};
+        \draw(plc-18-3.south west) -- (plc-18-3.south west -| 3e) node[circ](gndnode3){} -- (shackswitch-2-1.south east -| 3e) node[circ=1pt](gndnode1){};
         \draw(gndnode1) -- (shackswitch-2-1.south east);
         \draw(gndnode1) -- (lps-8-1.south east -| gndnode1) node[circ=1pt](gndnode2){} -- (lps-8-1.south east);
         \draw(gndnode2) |- (lps-7-1.south east);
+        \draw(gndnode3)[->] -- (gndnode3 -| topower+) node[anchor=west]{\footnotesize To MB24-1.2-AG GND};
         % lps cont
         \draw(lps-1-5.south west)[->] -- (lps-1-4 -| p3);
         \draw(lps-2-5.south west)[->] -- (lps-2-4 -| p3);
