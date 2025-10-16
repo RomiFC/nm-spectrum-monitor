@@ -1310,6 +1310,8 @@ After starting the program, navigate to \verb|Options>Configure| at the top left
 
 From here, the user can issue SCPI commands to the spectrum analyzer using the control panel on the right, issue motor commands using the \verb|Antenna Position| panel, or select RF chains using the \verb|PLC Operations| panel on the left after it has been initialized.
 
+Additionally, saved traces can be opened as an interactable matplotlib figure by selecting \verb|File>Open trace| in the top left banner. 
+
 \begin{figure}
   \begin{center}
     \includegraphics[width=\textwidth]{images/6gui.png}
@@ -1784,7 +1786,7 @@ For the best performance and stability, each RF trace should be fenced by two ro
 \subsection{DRIFT Integration}\label{sec:drift}
 The Dynamic Radio Interference Finding Tool (DRIFT) is an Electromagnetic Spectrum Management project intended to be an external-facing, web-based interface to visualize RFI data from various sites including VLA, GBT, VLBA, CHIME, ASM-2, and the NMSM.\@
 
-Sweeps are saved in a csv format that mimics those saved locally on the N9040B, containing lines of parameters with their values separated by commas as shown in Figure~\ref{fig:csvexample}. These sweeps can be converted to the DRIFT format by using the \lstinline|DRIFT Processing| utlity, accessed from the ribbon on the top left of the interface. The user can convert a directory of traces from the local format to the DRIFT format immediately or schedule it to be done daily at a certain time. Once DRIFT is running in a closed-access build, this document will be updated with the process for uploading files to DRIFT.\@
+Sweeps are saved in a csv format that mimics those saved locally on the N9040B, containing lines of parameters with their values separated by commas as shown in Figure~\ref{fig:csvexample}. These sweeps can be converted to the DRIFT format by using the \verb|DRIFT Processing| utlity, accessible from \verb|Run>DRIFT Processing| in the top left banner. The user can convert a directory of traces from the local format to the DRIFT format immediately or schedule it to be done daily at a certain time. Once DRIFT is running in a closed-access build, this document will be updated with the process for uploading files to DRIFT.\@
 
 \begin{figure}[ht]
 \begin{lstlisting}[aboveskip=0pt, belowskip=0pt]
