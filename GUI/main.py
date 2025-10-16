@@ -14,6 +14,7 @@ import sys
 import os
 from datetime import date, datetime, timedelta, timezone
 import datetime as dt
+from tzlocal import get_localzone
 from pyvisa import attributes
 import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -29,6 +30,7 @@ from pathlib import Path
 # MATPLOTLIB
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.ticker import EngFormatter
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # TKINTER
@@ -78,6 +80,7 @@ WATERFALL_JOB_ID = 'waterfall'
 DEF_DRIFT_FROM_PATH = os.getcwd()
 DEF_DRIFT_TO_PATH = os.getcwd()
 DRIFT_JOB_ID = 'driftprocessing'
+LOCAL_TIMEZONE = get_localzone()
 
 # STATE CONSTANTS
 class state:
@@ -1291,7 +1294,7 @@ class SpecAn(FrontEnd):
                         pass
                 if 'yAxisOld' in locals():
                     if yAxis != yAxisOld:
-                        TimeParameter.update(value=datetime.now(timezone.utc).isoformat())
+                        TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
             time.sleep(ANALYZER_REFRESH_DELAY)
 
     def setPlotThreadHandler(self, color=None, marker=None, linestyle=None, linewidth=None, markersize=None):
@@ -2369,6 +2372,31 @@ def generateWaterfallDialog():
     nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleWaterfall(now=True))
     nowButton.grid(row=1, column=1, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
+def openTrace():
+    filepath = filedialog.askopenfilename(title="Select a file", filetypes=(('Comma separated variables', '*.csv'),))
+    if filepath:
+        df = pd.read_csv(filepath, header=None)
+        trace = Trace(df, os.path.basename(filepath))
+        x = trace.data.loc[:, 0].astype(float)
+        y = trace.data.loc[:, 1].astype(float)
+        try:
+            _dt = datetime.fromisoformat(trace.header.loc['Time'].item()).astimezone(LOCAL_TIMEZONE)
+            _time = _dt.strftime("%H:%M:%S") + f' ({LOCAL_TIMEZONE})'
+        except:
+            _time = trace.header.loc['Time'].item()
+        plt.ion()
+        fig, ax = plt.subplots()
+        ax.plot(x, y)
+        ax.set_xlabel(f'Frequency ({trace.header.loc['X Axis Units'].item()})')
+        ax.set_ylabel(f'Power ({trace.header.loc['Y Axis Units'].item()})')
+        ax.grid(visible=True)
+        ax.margins(x=0)
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.xaxis.set_major_formatter(EngFormatter(unit='Hz'))
+        ax.set_title(f'{os.path.basename(filepath)}\n{_time}')
+        fig.canvas.draw()
+
 evalCheckbutton.configure(command=checkbuttonStateHandler)
 execCheckbutton.configure(command=checkbuttonStateHandler)
 
@@ -2426,6 +2454,7 @@ menubar.add_cascade(menu=menuRun, label='Run')
 menubar.add_cascade(menu=menuHelp, label='Help')
 
 # File
+menuFile.add_command(label='Open trace', command = lambda: openTrace())
 menuFile.add_command(label='Quicksave trace', command = lambda: threadHandler(saveTrace, kwargs={'filePath': os.getcwd()}))
 menuFile.add_separator()
 menuFile.add_command(label='Save trace', command = lambda: openSaveDialog(type='trace'))
