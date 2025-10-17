@@ -2122,6 +2122,9 @@ def generateAutoDialog():
 
     queueListbox = tk.Listbox(_frame1, listvariable=_listVar)
     queueListbox.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    queueScroll = ttk.Scrollbar(_frame1, orient=VERTICAL, command=queueListbox.yview)
+    queueListbox.configure(yscrollcommand=queueScroll.set)
+    queueScroll.grid(row=0, column=2, sticky=NSEW)
 
     for i in range(0,len(automation.queue),2):
         queueListbox.itemconfigure(i, background='#f0f0ff')
@@ -2174,6 +2177,11 @@ def autoStartStop():
             automation.state = state.AUTO
         case state.AUTO:
             automation.scheduler.pause()
+            # Remove jobs past execution from the queue
+            for _dt in automation.queue[:]:
+                if _dt < datetime.now():
+                    automation.queue.remove(_dt)
+            # Clear the scheduler job store
             for job in automation.scheduler.get_jobs():
                 job.remove()
 

@@ -3,12 +3,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 class Automation:
     def __init__(self, defaultstate=None, executors=None, job_defaults=None):
-        self.queue = []
+        self.queue = [] # Stores datetimes of jobs to be executed.
         self.state = defaultstate
-        self.filePath = os.getcwd()
+        self.filePath = os.getcwd() # Where to save traces
         self.scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults, daemon=True)
         self.presets = self.Presets()
-        self.textBoxString = self.presets.default
+        self.textBoxString = self.presets.default # Last saved textboxstring
 
     class Presets:
         def __init__(self):
@@ -24,7 +24,7 @@ def onSchedule():
 def initSchedule():
     with visaLock:
         Vi.openRsrc.write(":INIT:CONT OFF")
-    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=12e9, sweeppoints=4001, tracetype=0, rbw=300e3)
+    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=10e9, sweeppoints=5001, tracetype=0, rbw=300e3)
     
 # This function is called every time a scheduler job is run (in its own thread)
 def onSchedule():
@@ -40,7 +40,7 @@ def onSchedule():
 def initSchedule():
     with visaLock:
         Vi.openRsrc.write(":INIT:CONT OFF")
-    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=12e9, sweeppoints=4001, tracetype=1, avgcount=100, rbw=300e3)
+    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=10e9, sweeppoints=5001, tracetype=1, avgcount=1000, rbw=300e3)
     
 # This function is called every time a scheduler job is run (in its own thread)
 def onSchedule():
@@ -60,7 +60,7 @@ def onSchedule():
 def initSchedule():
     with visaLock:
         Vi.openRsrc.write(":INIT:CONT OFF")
-    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=12e9, sweeppoints=4001, tracetype=2, avgcount=100, rbw=300e3)
+    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=10e9, sweeppoints=5001, tracetype=2, avgcount=1000, rbw=300e3)
     
 # This function is called every time a scheduler job is run (in its own thread)
 def onSchedule():
@@ -80,7 +80,7 @@ def onSchedule():
 def initSchedule():
     with visaLock:
         Vi.openRsrc.write(":INIT:CONT OFF")
-    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=12e9, sweeppoints=4001, tracetype=3, avgcount=100, rbw=300e3)
+    Spec_An.setAnalyzerValue(startfreq=0, stopfreq=10e9, sweeppoints=5001, tracetype=3, avgcount=1000, rbw=300e3)
     
 # This function is called every time a scheduler job is run (in its own thread)
 def onSchedule():
