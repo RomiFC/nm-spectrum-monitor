@@ -122,7 +122,6 @@ motorLock = threading.RLock()       # For motor controller
 plcLock = threading.RLock()         # For PLC
 specPlotLock = threading.RLock()    # For matplotlib spectrum plot
 bearingPlotLock = threading.RLock() # For matplotlib antenna direction plot
-autoQueueLock = threading.RLock()   # For list of automated sweep datetimes
 
 # AUTOMATION PARAMETERS
 executors = {
@@ -1998,9 +1997,8 @@ def generateAutoDialog():
 
         _indexDateTime = _startDateTime + _intervalDelta
         while _indexDateTime <= _endDateTime:
-            with autoQueueLock:
-                automation.queue.append(_indexDateTime)
-                automation.queue.sort()
+            automation.queue.append(_indexDateTime)
+            automation.queue.sort()
             _indexDateTime = _indexDateTime + _intervalDelta
         _listVar.set(automation.queue)
 
@@ -2008,9 +2006,8 @@ def generateAutoDialog():
             queueListbox.itemconfigure(i, background='#f0f0ff')
     
     def _removeDateTime():
-        with autoQueueLock:
-            automation.queue.clear()
-            _listVar.set(automation.queue)
+        automation.queue.clear()
+        _listVar.set(automation.queue)
 
     def _presetButtonHandler(string):
         saveButton.configure(state=NORMAL)
@@ -2036,8 +2033,7 @@ def generateAutoDialog():
         dir = filedialog.askdirectory()
         if dir is None:
             return
-        with autoQueueLock:
-            automation.filePath = dir
+        automation.filePath = dir
         clearAndSetWidget(entry, dir)
 
     # Toplevel and notebook
