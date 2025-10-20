@@ -711,7 +711,7 @@ class SpecAn(FrontEnd):
         # STYLE
         s = ttk.Style()
         s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
-        s.configure('Icon.TLabel', font=cfg['theme']['icon_font'], justify=CENTER, background='#ffffff')
+        s.configure('Icon.TLabel', font=cfg['theme']['icon_font'], justify=CENTER)
         # VISA OBJECT
         self.Vi = Vi
         # PARENT
@@ -734,23 +734,24 @@ class SpecAn(FrontEnd):
         self.ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.xaxis.set_major_formatter(ticker.EngFormatter(unit=''))
+        self.fig.subplots_adjust(bottom=0.12, top=0.92)
         self.spectrumDisplay = FigureCanvasTkAgg(self.fig, master=spectrumFrame)
         self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=5)
 
         # ICON FRAME
         self.iconFrame = ttk.Frame(spectrumFrame)
-        self.iconFrame.place(x=0, y=0, anchor=NW)
+        self.iconFrame.place(x=0, rely=1, anchor=SW)
         self.sweepIcon = ttk.Label(self.iconFrame, text = SINGLE_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
-        self.sweepIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        self.sweepIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
         ToolTip(self.sweepIcon, msg='Single/Continuous', follow=True, delay=0.25)
         self.sweepingIcon = ttk.Label(self.iconFrame, text = SWEEPING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
-        self.sweepingIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        self.sweepingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
         ToolTip(self.sweepingIcon, msg='Sweeping', follow=True, delay=0.25)
         self.settlingIcon = ttk.Label(self.iconFrame, text = SETTLING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
-        self.settlingIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        self.settlingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
         ToolTip(self.settlingIcon, msg='Settling', follow=True, delay=0.25)
         self.calibratingIcon = ttk.Label(self.iconFrame, text = CALIBRATING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
-        self.calibratingIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        self.calibratingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
         ToolTip(self.calibratingIcon, msg='Calibrating', follow=True, delay=0.25)
 
         # MEASUREMENT TAB SELECTION
