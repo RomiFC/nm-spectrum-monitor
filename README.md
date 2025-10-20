@@ -105,6 +105,10 @@ pip install tkcalendar
 pip install tktimepicker
 ```
 
+```bash
+pip install tkinter-tooltip
+```
+
 ## :mailbox: Authors
 
 - [Remy Nguyen](https://github.com/RomiFC)
