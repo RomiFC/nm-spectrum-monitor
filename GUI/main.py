@@ -44,6 +44,7 @@ from tkinter.ttk import *
 from ttkthemes import ThemedTk
 from tkcalendar import Calendar, DateEntry
 from tktimepicker import SpinTimePickerModern, constants
+from tktooltip import ToolTip
 
 # CONSTANTS
 IDLE_DELAY = 1.0
@@ -71,6 +72,9 @@ COLOR_GREEN = '#00ff00'
 SINGLE_ICON = '\u2192'
 CONT_ICON = '\u2B8C'
 RESTART_ICON = '\u2B6F'
+SWEEPING_ICON = '\U0001F9F9'
+SETTLING_ICON = '\u2325'
+CALIBRATING_ICON = '\U0001F527'
 DEF_WF_PATH = os.getcwd()
 DEF_WF_THRESHOLD = 100
 DEF_WF_TZ = 'US/Mountain'
@@ -679,6 +683,7 @@ class SpecAn(FrontEnd):
         self.singleSweepFlag = False
         # STATE VARIABLES
         self.loopState = state.IDLE
+        self.operationStatusRegister = 0
         # CONSTANTS
         self.RBW_FILTER_SHAPE_VALUES = ('Gaussian', 'Flattop')
         self.RBW_FILTER_SHAPE_VAL_ARGS = ('GAUS', 'FLAT')
@@ -703,6 +708,10 @@ class SpecAn(FrontEnd):
         self.linestyle = None
         self.linewidth = None
         self.markersize = None
+        # STYLE
+        s = ttk.Style()
+        s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
+        s.configure('Icon.TLabel', font=cfg['theme']['icon_font'], justify=CENTER, background='#ffffff')
         # VISA OBJECT
         self.Vi = Vi
         # PARENT
@@ -728,9 +737,23 @@ class SpecAn(FrontEnd):
         self.spectrumDisplay = FigureCanvasTkAgg(self.fig, master=spectrumFrame)
         self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=5)
 
+        # ICON FRAME
+        self.iconFrame = ttk.Frame(spectrumFrame)
+        self.iconFrame.place(x=0, y=0, anchor=NW)
+        self.sweepIcon = ttk.Label(self.iconFrame, text = SINGLE_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.sweepIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        ToolTip(self.sweepIcon, msg='Single/Continuous', follow=True, delay=0.25)
+        self.sweepingIcon = ttk.Label(self.iconFrame, text = SWEEPING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.sweepingIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        ToolTip(self.sweepingIcon, msg='Sweeping', follow=True, delay=0.25)
+        self.settlingIcon = ttk.Label(self.iconFrame, text = SETTLING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.settlingIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        ToolTip(self.settlingIcon, msg='Settling', follow=True, delay=0.25)
+        self.calibratingIcon = ttk.Label(self.iconFrame, text = CALIBRATING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.calibratingIcon.pack(side=LEFT, ipadx=5, ipady=3)
+        ToolTip(self.calibratingIcon, msg='Calibrating', follow=True, delay=0.25)
+
         # MEASUREMENT TAB SELECTION
-        s = ttk.Style()
-        s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
         tabText = ['Frequency', 'Bandwidth', 'Amplitude', 'Sweep', 'Trace']
         measurementTab = ttk.Notebook(spectrumFrame, style="Custom.TNotebook")
         self.tab1 = ttk.Frame(measurementTab)
@@ -892,23 +915,16 @@ class SpecAn(FrontEnd):
         self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # SWEEP BUTTONS
-        s.configure('Icon.TButton', font=cfg['theme']['icon_font'], justify=tk.CENTER)
         initButton = ttk.Button(spectrumFrame, text="Initialize", command=self.initAnalyzer)
         initButton.grid(row=2, column=1, sticky=NSEW)
         sweepButtonFrame = tk.Frame(spectrumFrame)
         sweepButtonFrame.grid(row=3, column=1, sticky=NSEW)
-        self.sweepButton = ttk.Button(sweepButtonFrame, text="Single/Cont", command=lambda:self.sweepButtonHandler(action='toggle'))
+        self.sweepButton = ttk.Button(sweepButtonFrame, text=f"Single/Cont ({SINGLE_ICON}/{CONT_ICON})", command=lambda:self.sweepButtonHandler(action='toggle'))
         self.sweepButton.pack(expand=True, fill=BOTH, side=LEFT)
-        self.sweepIcon = ttk.Button(sweepButtonFrame, text = SINGLE_ICON, state=ENABLE, style='Icon.TButton', width=2)
-        self.sweepIcon.pack(side=RIGHT)
-        self.sweepIcon.bind('<Button>', 'break')
         restartButtonFrame = tk.Frame(spectrumFrame)
         restartButtonFrame.grid(row=4, column=1, sticky=NSEW)
-        self.restartButton = ttk.Button(restartButtonFrame, text=f'Restart', command=lambda:self.sweepButtonHandler(action='restart'))
+        self.restartButton = ttk.Button(restartButtonFrame, text=f'Restart {RESTART_ICON}', command=lambda:self.sweepButtonHandler(action='restart'))
         self.restartButton.pack(expand=True, fill=BOTH, side=LEFT)
-        self.restartIcon = ttk.Button(restartButtonFrame, text = RESTART_ICON, state=ENABLE, style='Icon.TButton', width=2)
-        self.restartIcon.pack(side=RIGHT)
-        self.restartIcon.bind('<Button>', 'break')
 
         self.bindWidgets() 
 
@@ -990,8 +1006,8 @@ class SpecAn(FrontEnd):
         Args:
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
-        _frames = (self.tab1, self.tab2, self.tab3, self.tab4, self.tab5)
-        _widgets = (self.sweepButton, self.restartButton, self.sweepIcon, self.restartIcon)
+        _frames = (self.tab1, self.tab2, self.tab3, self.tab4, self.tab5, self.iconFrame)
+        _widgets = (self.sweepButton, self.restartButton)
 
         if action == ENABLE:
             for frame in _frames:
@@ -1255,6 +1271,23 @@ class SpecAn(FrontEnd):
                         # Prevent this thread from taking up too much utilization
                         time.sleep(IDLE_DELAY)
 
+    def osrStateMachine(self):
+        """Sets the state of the icon widgets depending on their value in self.operationStatusRegister
+        """
+        osr = self.operationStatusRegister
+        if osr & 0b00000001:
+            self.calibratingIcon.configure(state='enable')
+        else:
+            self.calibratingIcon.configure(state='disable')
+        if osr & 0b00000010:
+            self.settlingIcon.configure(state='enable')
+        else:
+            self.settlingIcon.configure(state='disable')
+        if osr & 0b00001000:
+            self.sweepingIcon.configure(state='enable')
+        else:
+            self.sweepingIcon.configure(state='disable')
+
     def analyzerDisplayLoop(self):
         """Spectrum analyzer display loop. Constantly fetches the spectrum analyzer xy values and plots it in the matplotlib canvas.
         """
@@ -1262,6 +1295,9 @@ class SpecAn(FrontEnd):
         while TRUE:
             try:
                 visaLock.acquire()
+                # Update the osr and call the state machine
+                self.operationStatusRegister = self.Vi.getOperationRegister()
+                self.osrStateMachine()
                 # :FETCH:SAN? doesn't fetch if a sweep is in progress, this big ole mess is a workaround for that
                 startFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:START?")[0])
                 stopFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:STOP?")[0])

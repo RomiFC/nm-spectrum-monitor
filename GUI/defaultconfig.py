@@ -32,7 +32,7 @@ ttk = "clearlooks"
 select_background = "#00ff00"
 clock_font = ['Arial', 15]
 terminal_font = ['Courier', 11]
-icon_font = ['MS Serif', 12]
+icon_font = ['MS Serif', 14]
 font = ['Arial', 12]
 """
 
