@@ -920,16 +920,18 @@ class SpecAn(FrontEnd):
         self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # SWEEP BUTTONS
-        initButton = ttk.Button(spectrumFrame, text="Initialize", command=self.initAnalyzer)
-        initButton.grid(row=2, column=1, sticky=NSEW)
-        sweepButtonFrame = tk.Frame(spectrumFrame)
-        sweepButtonFrame.grid(row=3, column=1, sticky=NSEW)
-        self.sweepButton = ttk.Button(sweepButtonFrame, text=f"Single/Cont ({SINGLE_ICON}/{CONT_ICON})", command=lambda:self.sweepButtonHandler(action='toggle'))
-        self.sweepButton.pack(expand=True, fill=BOTH, side=LEFT)
-        restartButtonFrame = tk.Frame(spectrumFrame)
-        restartButtonFrame.grid(row=4, column=1, sticky=NSEW)
-        self.restartButton = ttk.Button(restartButtonFrame, text=f'Restart {RESTART_ICON}', command=lambda:self.sweepButtonHandler(action='restart'))
-        self.restartButton.pack(expand=True, fill=BOTH, side=LEFT)
+        loopStateFrame = tk.Frame(spectrumFrame)
+        loopStateFrame.grid(row=2, column=1, sticky=NSEW)
+        initButton = ttk.Button(loopStateFrame, text="Init", command=self.initAnalyzer)
+        initButton.grid(row=0, column=0, sticky=NSEW)
+        self.idleButton = ttk.Button(loopStateFrame, text='Idle', command=lambda:self.loopStateHandler(toState=state.IDLE))
+        self.idleButton.grid(row=0, column=1, sticky=NSEW)
+        self.loopButton = ttk.Button(loopStateFrame, text='Loop', command=lambda:self.loopStateHandler(toState=state.LOOP))
+        self.loopButton.grid(row=0, column=2, sticky=NSEW)
+        self.sweepButton = ttk.Button(spectrumFrame, text=f"Single/Cont ({SINGLE_ICON}/{CONT_ICON})", command=lambda:self.sweepButtonHandler(action='toggle'))
+        self.sweepButton.grid(row=3, column=1, sticky=NSEW)
+        self.restartButton = ttk.Button(spectrumFrame, text=f'Restart {RESTART_ICON}', command=lambda:self.sweepButtonHandler(action='restart'))
+        self.restartButton.grid(row=4, column=1, sticky=NSEW)
 
         self.bindWidgets() 
 
@@ -962,10 +964,9 @@ class SpecAn(FrontEnd):
         AvgHoldCount.update(widget=self.avgCountEntry)
 
         # Generate thread to handle live data plot in background
-        self.analyzerControlLoopThread = threading.Thread(target=self.analyzerControlLoop, daemon=TRUE)
         self.analyzerDisplayLoopthread = threading.Thread(target=self.analyzerDisplayLoop, daemon=TRUE)
 
-        self.toggleInputs(DISABLE)
+        self.loopStateHandler(toState=state.IDLE)
 
     def bindWidgets(self):
         """Binds tkinter events to the widgets' respective commands.
@@ -1201,80 +1202,31 @@ class SpecAn(FrontEnd):
                     # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
                     pass
                 visaLock.release()
-            self.toggleInputs(ENABLE)
+            self.loopStateHandler(toState=state.LOOP)
         thread = threading.Thread(target=init)
         thread.start()
 
-    def analyzerControlLoop(self):
-        # TODO deprecate but maybe keep some of the osr checker and visa session checker code
-        """Main spectrum analyzer state machine. Initializes spectrum analyzer connection and issues sweeps commands to the device.
+    def loopStateHandler(self, toState):
+        """Sets self.loopState to the state passed in `toState` and performs appropriate operations for that state change.
+
+        Args:
+            toState (state): Determines what state to set self.loopState to, can be state.IDLE or state.LOOP
+
+        Raises:
+            ValueError: if `toState` does not match a valid state.
         """
-        global visaLock, specPlotLock
-
-        while TRUE:
-            match self.loopState:
-                case state.IDLE:
-                    # Prevent this thread from taking up too much utilization
-                    self.toggleInputs(DISABLE)
-                    time.sleep(IDLE_DELAY)
-                    continue
-
-                case state.INIT:
-                    # Maintain this loop to prevent fatal error if the connected device is not a spectrum analyzer.
-                    if self.Vi.isSessionOpen() == FALSE:
-                        logging.error(f"Session to the analyzer is not open. Set up connection with Options > Configure..., then reinitialize.")
-                        self.loopState = state.IDLE
-                        continue
-                    try:
-                        visaLock.acquire()
-                        self.Vi.resetAnalyzerState()
-                        self.Vi.queryPowerUpErrors()
-                        self.Vi.testBufferSize()
-                        # Set widget values
-                        self.setAnalyzerValue()
-                        visaLock.release()
-                        self.loopState = state.LOOP
-                    except Exception as e:
-                        logging.error(f'{type(e).__name__}: {e}')
-                        try:
-                            self.Vi.queryErrors()
-                        except Exception as e:
-                            # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
-                            pass
-                        self.toggleInputs(ENABLE)
-                        visaLock.release()
-                        self.loopState = state.IDLE
-
-                case state.LOOP:
-                    # Main analyzer loop
-                    # TODO: variable time.sleep based on analyzer sweep time
-                    if self.Vi.isSessionOpen() == FALSE:
-                        logging.info(f"Lost connection to the analyzer.")
-                        self.loopState = state.IDLE
-                        continue
-                    self.toggleInputs(ENABLE)
-                    if self.contSweepFlag or self.singleSweepFlag:
-                        visaLock.acquire()
-                        try: # Check if the instrument is busy calibrating, settling, sweeping, or measuring 
-                            if self.Vi.getOperationRegister() & 0b00011011:
-                                continue 
-                        except Exception as e:
-                            logging.fatal(f'{type(e).__name__}: {e}')
-                            logging.fatal("Could not retrieve information from Operation Status Register.")
-                            visaLock.release()
-                            self.contSweepFlag = False
-                            continue
-                        try:
-                            self.Vi.openRsrc.write(":INIT:SAN")
-                        except Exception as e:
-                            logging.fatal(f'{type(e).__name__}: {e}')
-                            self.contSweepFlag = False
-                        visaLock.release()
-                        self.singleSweepFlag = False
-                        time.sleep(ANALYZER_LOOP_DELAY)
-                    else:
-                        # Prevent this thread from taking up too much utilization
-                        time.sleep(IDLE_DELAY)
+        match toState:
+            case state.IDLE:
+                self.idleButton.configure(state='disable')
+                self.loopButton.configure(state='enable')
+                self.toggleInputs(action = DISABLE)
+            case state.LOOP:
+                self.idleButton.configure(state='enable')
+                self.loopButton.configure(state='disable')
+                self.toggleInputs(action = ENABLE)
+            case _:
+                raise ValueError('loopStateHandler received invalid state')
+        self.loopState = toState
 
     def osrStateMachine(self):
         """Sets the state of the icon widgets depending on their value in self.operationStatusRegister
@@ -1302,44 +1254,51 @@ class SpecAn(FrontEnd):
         """
         yAxisOld = []
         while TRUE:
-            try:
-                visaLock.acquire()
-                # Update the osr and call the state machine
-                self.operationStatusRegister = self.Vi.getOperationRegister()
-                self.osrStateMachine()
-                # :FETCH:SAN? doesn't fetch if a sweep is in progress, this big ole mess is a workaround for that
-                startFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:START?")[0])
-                stopFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:STOP?")[0])
-                sweepPoints = int(self.Vi.openRsrc.query_ascii_values(":SENS:SWEEP:POINTS?")[0])
-                yAxis = self.Vi.openRsrc.query_ascii_values(":TRACE:DATA? TRACE1")
-                # currAvgCount = self.Vi.openRsrc.query_ascii_values(":SENS:AVER:COUNT:CURR?")
-                # clearAndSetWidget(self.currAvgCountEntry, currAvgCount)
-                buffer = True
-                visaLock.release()
-            except Exception as e:
-                visaLock.release()
-                buffer = None
-            if buffer:
-                with specPlotLock:
+            match self.loopState:
+                case state.IDLE:
+                    # Prevent this thread from taking up too much utilization
+                    time.sleep(IDLE_DELAY)
+                case state.LOOP:
                     try:
-                        if 'lines' in locals():     # Remove previous plot if it exists
-                            yAxisOld = self.ax.lines[0].get_data()[1].tolist()   # Save the currently plotted y data
-                            lines.pop(0).remove()
-                        stepSize = (stopFreq - startFreq) / (sweepPoints - 1)
-                        xAxis = np.zeros(sweepPoints)
-                        xAxis[0] = startFreq
-                        for index in range(sweepPoints - 1):
-                            xAxis[index + 1] = xAxis[index] + stepSize
-                        lines = self.ax.plot(xAxis, yAxis, color=self.color, marker=self.marker, linestyle=self.linestyle, linewidth=self.linewidth, markersize=self.markersize)
-                        self.ax.grid(visible=True)
-                        self.spectrumDisplay.draw()
+                        visaLock.acquire()
+                        # Update the osr and call the state machine
+                        self.operationStatusRegister = self.Vi.getOperationRegister()
+                        self.osrStateMachine()
+                        # :FETCH:SAN? doesn't fetch if a sweep is in progress, this big ole mess is a workaround for that
+                        startFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:START?")[0])
+                        stopFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:STOP?")[0])
+                        sweepPoints = int(self.Vi.openRsrc.query_ascii_values(":SENS:SWEEP:POINTS?")[0])
+                        yAxis = self.Vi.openRsrc.query_ascii_values(":TRACE:DATA? TRACE1")
+                        # currAvgCount = self.Vi.openRsrc.query_ascii_values(":SENS:AVER:COUNT:CURR?")
+                        # clearAndSetWidget(self.currAvgCountEntry, currAvgCount)
+                        buffer = True
+                        visaLock.release()
                     except Exception as e:
-                        logging.fatal(f'{type(e).__name__}: {e}')
-                        pass
-                if 'yAxisOld' in locals():
-                    if yAxis != yAxisOld:
-                        TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
-            time.sleep(ANALYZER_REFRESH_DELAY)
+                        visaLock.release()
+                        logging.error(f'{type(e).__name__}: {e}')
+                        self.loopStateHandler(toState=state.IDLE)
+                        buffer = None
+                    if buffer:
+                        with specPlotLock:
+                            try:
+                                if 'lines' in locals():     # Remove previous plot if it exists
+                                    yAxisOld = self.ax.lines[0].get_data()[1].tolist()   # Save the currently plotted y data
+                                    lines.pop(0).remove()
+                                stepSize = (stopFreq - startFreq) / (sweepPoints - 1)
+                                xAxis = np.zeros(sweepPoints)
+                                xAxis[0] = startFreq
+                                for index in range(sweepPoints - 1):
+                                    xAxis[index + 1] = xAxis[index] + stepSize
+                                lines = self.ax.plot(xAxis, yAxis, color=self.color, marker=self.marker, linestyle=self.linestyle, linewidth=self.linewidth, markersize=self.markersize)
+                                self.ax.grid(visible=True)
+                                self.spectrumDisplay.draw()
+                            except Exception as e:
+                                logging.fatal(f'{type(e).__name__}: {e}')
+                                pass
+                        if 'yAxisOld' in locals():
+                            if yAxis != yAxisOld:
+                                TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
+                    time.sleep(ANALYZER_REFRESH_DELAY)
 
     def setPlotThreadHandler(self, color=None, marker=None, linestyle=None, linewidth=None, markersize=None):
         """Generates thread to issue setPlotParam.
