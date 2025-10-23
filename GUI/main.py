@@ -503,6 +503,7 @@ class FrontEnd():
         """
         _parent = Toplevel()
         _parent.title('Configure')
+        _parent.attributes('-topmost', True)
 
         def onRefreshPress():
             """Update the values in the SCPI instrument selection box
@@ -2034,7 +2035,7 @@ def generateAutoDialog():
         return "break"
     
     def _pickFilePath(entry):
-        dir = filedialog.askdirectory()
+        dir = filedialog.askdirectory(parent = _parent)
         if dir is None:
             return
         automation.filePath = dir
@@ -2044,6 +2045,7 @@ def generateAutoDialog():
     _parent = Toplevel()
     _parent.title('Auto-Sweep Configuration')
     _parent.resizable(False, False)
+    _parent.attributes('-topmost', True)
     _notebook = ttk.Notebook(_parent)
     _notebook.grid(row=0, column=0, sticky=NSEW)
     _frame1 = ttk.Frame(_notebook)
@@ -2219,7 +2221,7 @@ def generateDriftDialog():
             dwfScheduler.remove_job(DRIFT_JOB_ID)
 
     def _pickFilePath(entry):
-        dir = filedialog.askdirectory()
+        dir = filedialog.askdirectory(parent = _parent)
         if not dir:
             return
         clearAndSetWidget(entry, dir)
@@ -2232,6 +2234,7 @@ def generateDriftDialog():
     _parent = Toplevel()
     _parent.title('DRIFT Processing')
     _parent.resizable(False, False)
+    _parent.attributes('-topmost', True)
     configWidgetsFrame = ttk.Frame(_parent, width=30)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     pathFrame = ttk.Frame(configWidgetsFrame)
@@ -2313,7 +2316,7 @@ def generateWaterfallDialog():
             dwfScheduler.remove_job(WATERFALL_JOB_ID)
 
     def _pickFilePath(entry):
-        dir = filedialog.askdirectory()
+        dir = filedialog.askdirectory(parent = _parent)
         if not dir:
             return
         clearAndSetWidget(entry, dir)
@@ -2321,6 +2324,7 @@ def generateWaterfallDialog():
     _parent = Toplevel()
     _parent.title('Waterfall Plot Utility')
     _parent.resizable(False, False)
+    _parent.attributes('-topmost', True)
     configWidgetsFrame = ttk.Frame(_parent, width=30)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     pathFrame = ttk.Frame(configWidgetsFrame)
