@@ -75,6 +75,7 @@ RESTART_ICON = '\u2B6F'
 SWEEPING_ICON = '\U0001F9F9'
 SETTLING_ICON = '\u2325'
 CALIBRATING_ICON = '\U0001F527'
+MEASURING_ICON = '\u2221'
 DEF_WF_PATH = os.getcwd()
 DEF_WF_THRESHOLD = 100
 DEF_WF_TZ = 'US/Mountain'
@@ -753,6 +754,9 @@ class SpecAn(FrontEnd):
         self.calibratingIcon = ttk.Label(self.iconFrame, text = CALIBRATING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
         self.calibratingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
         ToolTip(self.calibratingIcon, msg='Calibrating', follow=True, delay=0.25)
+        self.measuringIcon = ttk.Label(self.iconFrame, text = MEASURING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.measuringIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.measuringIcon, msg='Measuring', follow=True, delay=0.25)
 
         # MEASUREMENT TAB SELECTION
         tabText = ['Frequency', 'Bandwidth', 'Amplitude', 'Sweep', 'Trace']
@@ -1288,6 +1292,10 @@ class SpecAn(FrontEnd):
             self.sweepingIcon.configure(state='enable')
         else:
             self.sweepingIcon.configure(state='disable')
+        if osr & 0b00010000:
+            self.measuringIcon.configure(state='enable')
+        else:
+            self.measuringIcon.configure(state='disable')
 
     def analyzerDisplayLoop(self):
         """Spectrum analyzer display loop. Constantly fetches the spectrum analyzer xy values and plots it in the matplotlib canvas.
