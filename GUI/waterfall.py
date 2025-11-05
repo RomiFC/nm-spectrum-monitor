@@ -12,7 +12,7 @@ from collections import Counter
 
 from tracedata import *
 
-def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png', dpi=800):
+def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png', dpi=600):
     """Searches for csv files located in `path`, and if there are an amount of csvs with a unique date and receiver information in the file name above `threshold`, make a waterfall plot with them. The plot is saved in `path` as `filetype` and the parsed csv files are moved to their own directory.
 
 
@@ -21,7 +21,7 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
         threshold (int): Minimum count of unique csvs to process. Defaults to 100
         tz (str, optional): Timezone string passed to pytz.timezone, can be 'UTC', 'US/(Pacific/Mountain/Central/Eastern)', etc. Defaults to 'US/Mountain'.
         filetype (str, optional): File extension used in matplotlib.pyplot.savefig. Defaults to '.png'.
-        dpi (int, optional): Argument passed to matplotlib.pyplot.savefig. Defaults to 800.
+        dpi (int, optional): Argument passed to matplotlib.pyplot.savefig. Defaults to 600.
     """
     DATE_REGEX = r"(\d{4}-\d{2}-\d{2})"
     TIMEZONE = pytz.timezone(tz)
@@ -99,7 +99,15 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
                         print(f"Error: Permission denied to move '{file_name_joined}'.")
                     except Exception as e:
                         print(f"An unexpected error occurred: {e}")
-            savefigpath = os.path.join(path, dirName + filetype)
+            savefigdir  = os.path.join(path, 'Waterfall-Plots')
+            try:
+                os.mkdir(savefigdir)
+                logging.waterfall(f"Folder '{savefigdir}' created successfully in the current working directory.")
+            except FileExistsError:
+                pass
+            except OSError as e:
+                logging.waterfall(f"Error creating folder: {e}")
+            savefigpath = os.path.join(savefigdir, dirName + filetype)
             # plot
             fig, ax = plt.subplots(layout='constrained')
             mesh = ax.pcolormesh(x, y, z, shading='nearest', vmin=-80, vmax=-30)
