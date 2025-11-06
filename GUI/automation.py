@@ -31,7 +31,7 @@ def onSchedule():
     with visaLock:
         Vi.openRsrc.write(":INIT:CONT OFF")
         buffer = Vi.openRsrc.query_ascii_values(":READ:SAN?")
-        TimeParameter.update(value=datetime.now(timezone.utc).isoformat())
+        TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
     xAxis = buffer[::2]
     yAxis = buffer[1::2]
     saveTrace(filePath=automation.filePath, xdata=xAxis, ydata=yAxis)
@@ -51,7 +51,7 @@ def onSchedule():
         while Vi.getOperationRegister() & 0b00011011:
             time.sleep(0.1)
         buffer = Vi.openRsrc.query_ascii_values(":FETCH:SAN?")
-        TimeParameter.update(value=datetime.now(timezone.utc).isoformat())
+        TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
     xAxis = buffer[::2]
     yAxis = buffer[1::2]
     saveTrace(filePath=automation.filePath, xdata=xAxis, ydata=yAxis)
@@ -71,7 +71,7 @@ def onSchedule():
         while Vi.getOperationRegister() & 0b00011011:
             time.sleep(0.1)
         buffer = Vi.openRsrc.query_ascii_values(":FETCH:SAN?")
-        TimeParameter.update(value=datetime.now(timezone.utc).isoformat())
+        TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
     xAxis = buffer[::2]
     yAxis = buffer[1::2]
     saveTrace(filePath=automation.filePath, xdata=xAxis, ydata=yAxis)
@@ -91,7 +91,7 @@ def onSchedule():
         while Vi.getOperationRegister() & 0b00011011:
             time.sleep(0.1)
         buffer = Vi.openRsrc.query_ascii_values(":FETCH:SAN?")
-        TimeParameter.update(value=datetime.now(timezone.utc).isoformat())
+        TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
     xAxis = buffer[::2]
     yAxis = buffer[1::2]
     saveTrace(filePath=automation.filePath, xdata=xAxis, ydata=yAxis)
