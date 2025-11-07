@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 import matplotlib.dates as mdates
 import pytz
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 from datetime import datetime, timedelta
@@ -99,6 +100,7 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
                         print(f"Error: Permission denied to move '{file_name_joined}'.")
                     except Exception as e:
                         print(f"An unexpected error occurred: {e}")
+            # GENERATE WATERFALL PLOT
             savefigdir  = os.path.join(path, 'Waterfall-Plots')
             try:
                 os.mkdir(savefigdir)
@@ -123,6 +125,42 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
             plt.colorbar(mesh, label='Magnitude (dBm)')
             plt.savefig(savefigpath, dpi=dpi)
             logging.waterfall(f'File {dirName + filetype} successfully saved to {path}')
+            # GENERATES AVERAGE CSV
+            saveavgdir  = os.path.join(path, 'Averages')
+            saveavgdriftdir = os.path.join(saveavgdir, 'DRIFT')
+            try:
+                os.mkdir(saveavgdir)
+                logging.waterfall(f"Folder '{saveavgdir}' created successfully in the current working directory.")
+            except FileExistsError:
+                pass
+            except OSError as e:
+                logging.waterfall(f"Error creating folder: {e}")
+            try:
+                os.mkdir(saveavgdriftdir)
+                logging.waterfall(f"Folder '{saveavgdriftdir}' created successfully in the current working directory.")
+            except FileExistsError:
+                pass
+            except OSError as e:
+                logging.waterfall(f"Error creating folder: {e}")
+            average = np.array((np.array(x[0][:]), np.mean(z, axis=0)))
+            # Create pandas dataframe by using the last collected trace header as the average trace header
+            datarow = pd.DataFrame({'index': ['DATA',], 'Value': [np.nan,]})
+            avgHeader = pd.concat([trace.header.reset_index(), datarow], ignore_index=True)
+            avgData = pd.DataFrame(average.T)
+            avgData.columns = ['index', 'Value']
+            avgCsvDf  = pd.concat([avgHeader, avgData], ignore_index=True)
+            avgCsvDf.columns = [0, 1]
+            # Create trace object from average csv dataframe and save to csvs in respective directories
+            AvgTrace = Trace(avgCsvDf, f'{receiver}-{dateToProcess}-AVG.csv')
+            AvgTraceDrift = AvgTrace.generateDriftData()
+            AvgTraceCsvName = AvgTrace.name + '.csv'
+            AvgTraceCsvDriftName = AvgTrace.drift.scan_name + '.csv'
+            AvgTraceCsvNameJoined = os.path.join(saveavgdir, AvgTraceCsvName)
+            AvgTraceCsvDriftNameJoined = os.path.join(saveavgdriftdir, AvgTraceCsvDriftName)
+            AvgTrace.trace.to_csv(AvgTraceCsvNameJoined, index=False, header=False)
+            logging.waterfall(f'File {AvgTraceCsvName} successfully saved to {saveavgdir}')
+            AvgTraceDrift.to_csv(AvgTraceCsvDriftNameJoined, index=False)
+            logging.waterfall(f'File {AvgTraceCsvDriftName} successfully saved to {saveavgdriftdir}')
         datesToProcess.remove(dateToProcess)
 
     logging.waterfall('No more plots to generate.')

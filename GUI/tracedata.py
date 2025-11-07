@@ -34,6 +34,7 @@ class Trace:
         if not isinstance(trace, pd.DataFrame):
             raise TypeError('Argument not of type pd.Dataframe')
         self.name = name.replace('.csv', '')
+        self.trace = trace
 
         # Split trace data into two dataframes
         data_index = trace.index[trace[0] == 'DATA'].tolist()[0]
