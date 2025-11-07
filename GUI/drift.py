@@ -43,7 +43,8 @@ def toDriftFormat(tracePath, driftPath):
     # process all csvs
     for file_name in trace_files:
         # Generate dataframe from csv
-        df = pd.read_csv(file_name, header=None)
+        file_path = os.path.join(tracePath, file_name)
+        df = pd.read_csv(file_path, header=None)
         trace = Trace(df, file_name)
         # Does the csv have a drift compatible counterpart?
         drift_trace_path = os.path.join(driftPath, trace.name + Trace.DRIFT_SUFFIX + '.csv')

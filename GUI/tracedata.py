@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import re
 from enum import Enum
+from datetime import datetime, timezone
 
 def natural_sort_key(s):
     return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
@@ -64,8 +65,9 @@ class Trace:
                 self.scan_el = header.loc['Elevation'].item()
             self.intensity_unit = 'dBm'
             self.scan_name = name + Trace.DRIFT_SUFFIX
-            self.scan_datetime = header.loc['Time'].item()
-            self.frequency = data.loc[:, 0].astype(float) / 1000000 # drift freq is in mhz
+            time = datetime.fromisoformat(header.loc['Time'].item())
+            self.scan_datetime = time.astimezone(timezone.utc).isoformat()  # drift datetime is in utc
+            self.frequency = data.loc[:, 0].astype(float) / 1000000         # drift freq is in mhz
             self.intensity = data.loc[:, 1]
 
         def getDriftDf(self):
