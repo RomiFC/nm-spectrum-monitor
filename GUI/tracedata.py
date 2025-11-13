@@ -46,8 +46,14 @@ class Trace:
         # Resets index column numbers to start at 0
         self.data = data.reset_index(drop=True)
 
+        # If a 'Time' parameter exists in the header, save it (Traces generated from the program will have this, native Keysight traces won't)
+        try:
+            self.datetime = datetime.fromisoformat(self.header.loc['Time'].item())
+        except:
+            pass
+
     class Drift:
-        def __init__(self, header, data, name):
+        def __init__(self, header, data, name, datetime):
             """Takes the 'header' and 'data' DataFrames from class Trace and parses the 'DRIFT unified fields' from them. Receiver information is gathered from the file name.
 
             Args:
@@ -64,9 +70,8 @@ class Trace:
                 self.scan_az = header.loc['Azimuth'].item()
                 self.scan_el = header.loc['Elevation'].item()
             self.intensity_unit = 'dBm'
-            self.scan_name = name + Trace.DRIFT_SUFFIX
-            time = datetime.fromisoformat(header.loc['Time'].item())
-            self.scan_datetime = time.astimezone(timezone.utc).isoformat()  # drift datetime is in utc
+            self.scan_name = self.receiver + '-' + datetime.strftime("%Y-%m-%d") + '-D' + name.split('-')[4]
+            self.scan_datetime = datetime.astimezone(timezone.utc).isoformat()  # drift datetime is in utc
             self.frequency = data.loc[:, 0].astype(float) / 1000000         # drift freq is in mhz
             self.intensity = data.loc[:, 1]
 
@@ -107,5 +112,5 @@ class Trace:
         Returns:
             DataFrame: pandas DataFrame in DRIFT-compatible format
         """
-        self.drift = self.Drift(self.header, self.data, self.name)
+        self.drift = self.Drift(self.header, self.data, self.name, self.datetime)
         return self.drift.getDriftDf()

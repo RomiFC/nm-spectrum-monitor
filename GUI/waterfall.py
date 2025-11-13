@@ -154,9 +154,12 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
             AvgTrace = Trace(avgCsvDf, f'{receiver}-{dateToProcess}-AVG.csv')
             AvgTraceDrift = AvgTrace.generateDriftData()
             AvgTraceCsvName = AvgTrace.name + '.csv'
+            # Recreate scan name with 'D' in type to denote drift format
             AvgTraceCsvDriftName = AvgTrace.drift.scan_name + '.csv'
+            # Join file paths and file names
             AvgTraceCsvNameJoined = os.path.join(saveavgdir, AvgTraceCsvName)
             AvgTraceCsvDriftNameJoined = os.path.join(saveavgdriftdir, AvgTraceCsvDriftName)
+            # Create csv files
             AvgTrace.trace.to_csv(AvgTraceCsvNameJoined, index=False, header=False)
             logging.waterfall(f'File {AvgTraceCsvName} successfully saved to {saveavgdir}')
             AvgTraceDrift.to_csv(AvgTraceCsvDriftNameJoined, index=False)
