@@ -13,12 +13,16 @@ from collections import Counter
 
 from tracedata import *
 
-def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png', dpi=600):
-    """Searches for csv files located in `path`, and if there are an amount of csvs with a unique date and receiver information in the file name above `threshold`, make a waterfall plot with them. The plot is saved in `path` as `filetype` and the parsed csv files are moved to their own directory.
+def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filetype = '.png', dpi=600):
+    """Searches for csv files located in `frompath`, and if there are an amount of csvs with a unique date and receiver information
+    in the file name above `threshold`,make a waterfall plot with them. The plot is saved in `topath` as `filetype` and the
+    parsed csv files are moved to their own directory.
 
+    This function also generates an "averaged" csv of the entire waterfall plot and drift format version.
 
     Args:
-        path (str): File path to check for csvs and generate waterfall plot into.
+        frompath (str): File path to check for csvs.
+        topath (str): File path to generate waterfall plots and average csvs into, and to archive processed csvs.
         threshold (int): Minimum count of unique csvs to process. Defaults to 100
         tz (str, optional): Timezone string passed to pytz.timezone, can be 'UTC', 'US/(Pacific/Mountain/Central/Eastern)', etc. Defaults to 'US/Mountain'.
         filetype (str, optional): File extension used in matplotlib.pyplot.savefig. Defaults to '.png'.
@@ -30,12 +34,12 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
     dateList = []
     datesToProcess = []
     # import data
-    trace_files = getAllCsvFiles(path)
+    trace_files = getAllCsvFiles(frompath)
     # Make a directory for original csvs to move to
-    archivedir = os.path.join(path, 'Archived')
+    archivedir = os.path.join(topath, 'Archived')
     try:
         os.mkdir(archivedir)
-        logging.waterfall(f"Folder 'Archived' created successfully {path}.")
+        logging.waterfall(f"Folder 'Archived' created successfully {topath}.")
     except FileExistsError:
         pass
     except OSError as e:
@@ -90,7 +94,7 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
                 hasDate = re.search(DATE_REGEX, file_name)
                 csvDate = hasDate.group(1)
                 if csvDate == dateToProcess and file_name.split('-')[0] == receiver:
-                    file_name_joined = os.path.join(path, file_name)
+                    file_name_joined = os.path.join(frompath, file_name)
                     df = pd.read_csv(file_name_joined, header=None)
                     trace = Trace(df, file_name)
                     if len(x) == 0: # If this is the first element for this date, use its parameters for the dimensions of x/y/z
@@ -110,7 +114,7 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
                     except Exception as e:
                         print(f"An unexpected error occurred: {e}")
             # GENERATE WATERFALL PLOT
-            savefigdir  = os.path.join(path, 'Waterfall-Plots')
+            savefigdir  = os.path.join(topath, 'Waterfall-Plots')
             try:
                 os.mkdir(savefigdir)
                 logging.waterfall(f"Folder '{savefigdir}' created successfully in the current working directory.")
@@ -133,9 +137,9 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
             ax.invert_yaxis()
             plt.colorbar(mesh, label='Magnitude (dBm)')
             plt.savefig(savefigpath, dpi=dpi)
-            logging.waterfall(f'File {dirName + filetype} successfully saved to {path}')
+            logging.waterfall(f'File {dirName + filetype} successfully saved to {topath}')
             # GENERATES AVERAGE CSV
-            saveavgdir  = os.path.join(path, 'Averages')
+            saveavgdir  = os.path.join(topath, 'Averages')
             saveavgdriftdir = os.path.join(saveavgdir, 'DRIFT')
             try:
                 os.mkdir(saveavgdir)

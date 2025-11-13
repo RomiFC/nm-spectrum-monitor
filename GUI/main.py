@@ -77,7 +77,8 @@ SETTLING_ICON = '\u2325'
 CALIBRATING_ICON = '\U0001F527'
 MEASURING_ICON = '\u2221'
 LOCK_ICON = '\U0001F512'
-DEF_WF_PATH = os.getcwd()
+DEF_WF_FROM_PATH = os.getcwd()
+DEF_WF_TO_PATH = os.getcwd()
 DEF_WF_THRESHOLD = 100
 DEF_WF_TZ = 'US/Mountain'
 DEF_WF_FILETYPE = '.png'
@@ -2298,14 +2299,16 @@ def generateWaterfallDialog():
     _fileTypes = ('.png', '.jpg', '.pdf', '.svg')
 
     def _scheduleWaterfall(now=False):
-        global DEF_WF_PATH, DEF_WF_THRESHOLD, DEF_WF_TZ, DEF_WF_FILETYPE, DEF_WF_DPI
-        _path = pathEntry.get()
+        global DEF_WF_FROM_PATH, DEF_WF_TO_PATH, DEF_WF_THRESHOLD, DEF_WF_TZ, DEF_WF_FILETYPE, DEF_WF_DPI
+        _fromPath = fromPathEntry.get()
+        _toPath = toPathEntry.get()
         _threshold = int(thEntry.get())
         _timezone = tzCombo.get()
         _filetype = ftCombo.get()
         _dpi = int(dpiEntry.get())
-        args = (_path, _threshold, _timezone, _filetype, _dpi)
-        DEF_WF_PATH = _path
+        args = (_fromPath, _toPath, _threshold, _timezone, _filetype, _dpi)
+        DEF_WF_FROM_PATH = _fromPath
+        DEF_WF_TO_PATH = _toPath
         DEF_WF_THRESHOLD = _threshold
         DEF_WF_TZ = _timezone
         DEF_WF_FILETYPE = _filetype
@@ -2342,13 +2345,20 @@ def generateWaterfallDialog():
     pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
     pathFrame.columnconfigure(0, weight=0)
     pathFrame.columnconfigure(1, weight=1)
-    pathLabel = ttk.Label(pathFrame, text='File Path:')
-    pathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    pathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
-    pathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    clearAndSetWidget(pathEntry, DEF_WF_PATH)
-    pathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(pathEntry))
-    pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    fromPathLabel = ttk.Label(pathFrame, text='Trace Directory:')
+    fromPathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    fromPathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
+    fromPathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(fromPathEntry, DEF_DRIFT_FROM_PATH)
+    fromPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(fromPathEntry))
+    fromPathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    toPathLabel = ttk.Label(pathFrame, text='Destination Directory:')
+    toPathLabel.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    toPathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
+    toPathEntry.grid(row=3, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(toPathEntry, DEF_DRIFT_TO_PATH)
+    toPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(toPathEntry))
+    toPathPicker.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
     sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     paramsFrame = ttk.Frame(configWidgetsFrame)
