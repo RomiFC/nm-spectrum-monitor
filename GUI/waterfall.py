@@ -31,6 +31,15 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
     datesToProcess = []
     # import data
     trace_files = getAllCsvFiles(path)
+    # Make a directory for original csvs to move to
+    archivedir = os.path.join(path, 'Archived')
+    try:
+        os.mkdir(archivedir)
+        logging.waterfall(f"Folder 'Archived' created successfully {path}.")
+    except FileExistsError:
+        pass
+    except OSError as e:
+        logging.waterfall(f"Error creating folder: {e}")
 
     # Make list of all dates in csv files
     for file_name in trace_files:
@@ -68,10 +77,10 @@ def makeWaterfalls(path, threshold = 100, tz = 'US/Mountain', filetype = '.png',
         for receiver in receiversToProcess:
             # Make directory for specific receiver/date combination
             dirName = f'{receiver}-{dateToProcess}-WATERFALL'
-            moveToDir = os.path.join(path, dirName)
+            moveToDir = os.path.join(archivedir, dirName)
             try:
                 os.mkdir(moveToDir)
-                logging.waterfall(f"Folder '{dirName}' created successfully in the current working directory.")
+                logging.waterfall(f"Folder '{dirName}' created successfully in {archivedir}.")
             except FileExistsError:
                 pass
             except OSError as e:
