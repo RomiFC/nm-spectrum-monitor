@@ -2054,38 +2054,78 @@ def generateAutoDialog():
         automation.filePath = dir
         clearAndSetWidget(entry, dir)
 
+    def _triggerButtonHandler():
+        automation.isCronTrigger = _tkTriggerVar.get()
+        if automation.isCronTrigger:
+            disableChildren(endDateFrame)
+            addButton.configure(state='disable')
+            removeButton.configure(state='disable')
+            _removeDateTime()
+        else:
+            enableChildren(endDateFrame)
+            addButton.configure(state='enable')
+            removeButton.configure(state='enable')
+
+    def _cronParamHandler():
+        # Get datetime from start picker
+        _startDate = startDatePicker.get_date()
+        _startTimePicker = startTimePicker.time()
+        _startTimeString = f'{_startTimePicker[0]}:{_startTimePicker[1]} {_startTimePicker[2]}'
+        _startTime = datetime.strptime(_startTimeString, '%I:%M %p').time()
+        _startDateTime = datetime.combine(_startDate, _startTime)
+        # Get interval from interval picker
+        _intervalPicker = list(intervalPicker.time())
+        if _intervalPicker[0] == 0 and _intervalPicker[1] == 0: # workaround for tktimepicker not allowing 24 hours and 0 minutes
+            _intervalPicker[0] = 24
+
+        automation.cronStartDatetime = _startDateTime
+        automation.cronInterval = _intervalPicker
+        _parent.destroy()
+
     # Toplevel and notebook
     _parent = Toplevel()
     _parent.title('Auto-Sweep Configuration')
-    _parent.resizable(False, False)
+    _parent.resizable(True, True)
     _parent.attributes('-topmost', True)
+    _parent.protocol("WM_DELETE_WINDOW", _cronParamHandler)
+    _parent.rowconfigure(0, weight=1)
+    _parent.columnconfigure(0, weight=1)
     _notebook = ttk.Notebook(_parent)
     _notebook.grid(row=0, column=0, sticky=NSEW)
     _frame1 = ttk.Frame(_notebook)
     _frame1.rowconfigure(0, weight=1)
     _frame1.columnconfigure(1, weight=1)
     _frame2 = ttk.Frame(_notebook)
+    _frame2.rowconfigure(0, weight=1)
+    _frame2.columnconfigure(0, weight=0)
+    _frame2.columnconfigure(1, weight=1)
     _notebook.add(_frame1, text='Config', sticky=NSEW)
     _notebook.add(_frame2, text='Scripting')
-    _time = datetime.now()
+    _time = datetime.now(LOCAL_TIMEZONE)
     _period = constants.AM
-    if _time.hour > 12:
-        _time.replace(hour=_time.hour - 12)
+    _hour = int(_time.strftime('%I'))
+    _minute = int(_time.strftime('%M'))
+    if _time.strftime('%p') == 'PM':
         _period = constants.PM
+    _tkTriggerVar = BooleanVar(value=automation.isCronTrigger)
     # Tab 1 (Config)
     configWidgetsFrame = ttk.Frame(_frame1, width=30)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     pathFrame = ttk.Frame(configWidgetsFrame)
     pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
     pathFrame.columnconfigure(0, weight=0)
-    pathFrame.columnconfigure(1, weight=1)
+    pathFrame.columnconfigure(1, weight=0)
     pathLabel = ttk.Label(pathFrame, text='File Path')
     pathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    pathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
+    pathEntry = ttk.Entry(pathFrame, width=65, state='disabled')
     pathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     clearAndSetWidget(pathEntry, automation.filePath)
     pathPicker = ttk.Button(pathFrame, text='Browse...', command = lambda: _pickFilePath(pathEntry))
     pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    cronTriggerButton = ttk.Radiobutton(pathFrame, text='CronTrigger', variable=_tkTriggerVar, value=True, takefocus=False, command=_triggerButtonHandler)
+    cronTriggerButton.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NS)
+    dateTriggerButton = ttk.Radiobutton(pathFrame, text='DateTrigger', variable=_tkTriggerVar, value=False, takefocus=False, command=_triggerButtonHandler)
+    dateTriggerButton.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NS)
     sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     startDateFrame = ttk.Frame(configWidgetsFrame)
@@ -2099,8 +2139,8 @@ def generateAutoDialog():
     startTimePicker = SpinTimePickerModern(startDateFrame, period=_period)
     startTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
     startTimePicker.addAll(constants.HOURS12)
-    startTimePicker.set12Hrs(_time.hour)
-    startTimePicker.setMins(_time.minute)
+    startTimePicker.set12Hrs(_hour)
+    startTimePicker.setMins(_minute)
     sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     endDateFrame = ttk.Frame(configWidgetsFrame)
@@ -2111,11 +2151,11 @@ def generateAutoDialog():
     endLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
     endDatePicker = DateEntry(endDateFrame)
     endDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    endTimePicker = SpinTimePickerModern(endDateFrame, period=_period)
+    endTimePicker = SpinTimePickerModern(endDateFrame, period=constants.PM)
     endTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
     endTimePicker.addAll(constants.HOURS12)
-    endTimePicker.set12Hrs(_time.hour)
-    endTimePicker.setMins(_time.minute)
+    endTimePicker.set12Hrs(11)
+    endTimePicker.setMins(59)
     sep3 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
     sep3.grid(row=5, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     intervalFrame = ttk.Frame(configWidgetsFrame)
@@ -2127,8 +2167,8 @@ def generateAutoDialog():
     intervalPicker = SpinTimePickerModern(intervalFrame)
     intervalPicker.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     intervalPicker.addAll(constants.HOURS24)
-    intervalPicker.set24Hrs(0)
-    intervalPicker.setMins(0)
+    intervalPicker.set24Hrs(automation.cronInterval[0])
+    intervalPicker.setMins(automation.cronInterval[1])
 
     addButton = ttk.Button(configWidgetsFrame, text="Generate", command=_addDateTime)
     addButton.grid(row=7, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
@@ -2140,6 +2180,8 @@ def generateAutoDialog():
     queueScroll = ttk.Scrollbar(_frame1, orient=VERTICAL, command=queueListbox.yview)
     queueListbox.configure(yscrollcommand=queueScroll.set)
     queueScroll.grid(row=0, column=2, sticky=NSEW)
+
+    _triggerButtonHandler()
 
     for i in range(0,len(automation.queue),2):
         queueListbox.itemconfigure(i, background='#f0f0ff')
@@ -2178,18 +2220,38 @@ def autoStartStop():
     """
     match automation.state:
         case state.IDLE:
-            if automation.queue == []:
-                logging.error('Automation queue is empty')
-                return
-            thread = threading.Thread(target=initSchedule, daemon=True)
-            thread.start()
-            # if the scheduler isn't paused when adding more than 2 jobs it breaks most of the time
-            # changing trigger from date to interval fixes it?
-            # also commenting out the sys.stdout/err redirectors fixes it and i have no idea why
-            for taskDateTime in automation.queue:
-                automation.scheduler.add_job(onSchedule, trigger='date', run_date = taskDateTime)
-            automation.scheduler.resume()
-            automation.state = state.AUTO
+            if automation.isCronTrigger:    # Cron style job scheduling
+                thread = threading.Thread(target=initSchedule, daemon=True)
+                thread.start()
+                if automation.cronInterval[0] == 0:
+                    _hour = None
+                else:
+                    _hour = f'*/{automation.cronInterval[0]}'
+                if automation.cronInterval[0] == 24:
+                    _day = f'*/1'
+                else:
+                    _day = None
+                if automation.cronInterval[1] == 0:
+                    _minute = None
+                else:
+                    _minute = f'*/{automation.cronInterval[1]}'
+                _cronTrigger = CronTrigger(start_date = automation.cronStartDatetime, day = _day, hour = _hour, minute = _minute)
+                automation.scheduler.add_job(onSchedule, trigger=_cronTrigger)
+                automation.scheduler.resume()
+                automation.state = state.AUTO
+            else:                           # Datetime style job scheduling from automation.queue
+                if automation.queue == []:
+                    logging.error('Automation queue is empty')
+                    return
+                thread = threading.Thread(target=initSchedule, daemon=True)
+                thread.start()
+                # if the scheduler isn't paused when adding more than 2 jobs it breaks most of the time
+                # changing trigger from date to interval fixes it?
+                # also commenting out the sys.stdout/err redirectors fixes it and i have no idea why
+                for taskDateTime in automation.queue:
+                    automation.scheduler.add_job(onSchedule, trigger='date', run_date = taskDateTime)
+                automation.scheduler.resume()
+                automation.state = state.AUTO
         case state.AUTO:
             automation.scheduler.pause()
             # Remove jobs past execution from the queue

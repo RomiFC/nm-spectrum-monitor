@@ -3,12 +3,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 class Automation:
     def __init__(self, defaultstate=None, executors=None, job_defaults=None):
-        self.queue = [] # Stores datetimes of jobs to be executed.
+        self.queue = [] # Stores datetimes of jobs to be executed for the DateTrigger.
         self.state = defaultstate
         self.filePath = os.getcwd() # Where to save traces
         self.scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults, daemon=True)
         self.presets = self.Presets()
         self.textBoxString = self.presets.default # Last saved textboxstring
+
+        self.isCronTrigger = True
+        self.cronStartDatetime = 0
+        self.cronInterval = [0, 5]
 
     class Presets:
         def __init__(self):
