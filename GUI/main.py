@@ -2220,7 +2220,7 @@ def autoStartStop():
     """
     match automation.state:
         case state.IDLE:
-            if automation.isCronTrigger:    # Cron style job scheduling
+            if automation.isCronTrigger and automation.cronStartDatetime is not None:    # Cron style job scheduling
                 thread = threading.Thread(target=initSchedule, daemon=True)
                 thread.start()
                 if automation.cronInterval[0] == 0:

@@ -11,7 +11,7 @@ class Automation:
         self.textBoxString = self.presets.default # Last saved textboxstring
 
         self.isCronTrigger = True
-        self.cronStartDatetime = 0
+        self.cronStartDatetime = None
         self.cronInterval = [0, 5]
 
     class Presets:
