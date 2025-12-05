@@ -2360,7 +2360,7 @@ def generateDriftDialog():
 def generateWaterfallDialog():
     _fileTypes = ('.png', '.jpg', '.pdf', '.svg')
 
-    def _scheduleWaterfall(now=False):
+    def _scheduleWaterfall(now=False, regenerate=False):
         global DEF_WF_FROM_PATH, DEF_WF_TO_PATH, DEF_WF_THRESHOLD, DEF_WF_TZ, DEF_WF_FILETYPE, DEF_WF_DPI
         _fromPath = fromPathEntry.get()
         _toPath = toPathEntry.get()
@@ -2376,8 +2376,12 @@ def generateWaterfallDialog():
         DEF_WF_FILETYPE = _filetype
         DEF_WF_DPI = _dpi
         if now:
-            thread = threading.Thread(target=makeWaterfalls, args=args, daemon=True)
-            thread.start()
+            if regenerate:
+                thread = threading.Thread(target=regenerateWaterfalls, args=args, daemon=True)
+                thread.start()
+            else:
+                thread = threading.Thread(target=makeWaterfalls, args=args, daemon=True)
+                thread.start()
             return
         _jobTimePicker = intervalPicker.time()
         _jobTimeString = f'{_jobTimePicker[0]}:{_jobTimePicker[1]} {_jobTimePicker[2]}'
@@ -2464,8 +2468,10 @@ def generateWaterfallDialog():
     scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
     clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    regenerateButton = ttk.Button(buttonFrame, text="Regenerate", command=lambda: _scheduleWaterfall(now=True, regenerate=True))
+    regenerateButton.grid(row=1, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleWaterfall(now=True))
-    nowButton.grid(row=1, column=1, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton.grid(row=1, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
 def openTrace():
     filepath = filedialog.askopenfilename(title="Select a file", filetypes=(('Comma separated variables', '*.csv'),))

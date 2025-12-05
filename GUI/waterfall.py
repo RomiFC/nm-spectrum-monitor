@@ -29,7 +29,15 @@ def _mkdir(path: str, subfolder: str | list[str] | tuple[str]):
     
     return _dir
 
-def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filetype = '.png', dpi=600):
+def regenerateWaterfalls(frompath:str, topath:str, threshold:int = 100, tz:str = 'US/Mountain', filetype:str = '.png', dpi:int=600):
+    folders_with_csv = []
+    for dirpath, dirnames, filenames in os.walk(frompath):
+        if any(filename.lower().endswith('.csv') for filename in filenames):
+            folders_with_csv.append(dirpath)
+    for folder in folders_with_csv:
+        makeWaterfalls(folder, topath, threshold, tz, filetype, dpi, moveFlag=False)
+
+def makeWaterfalls(frompath:str, topath:str, threshold:int = 100, tz:str = 'US/Mountain', filetype:str = '.png', dpi:int=600, moveFlag:bool=True):
     """Searches for csv files located in `frompath`, and if there are an amount of csvs with a unique date and receiver information
     in the file name above `threshold`,make a waterfall plot with them. The plot is saved in `topath` as `filetype` and the
     parsed csv files are moved to their own directory.
@@ -113,13 +121,14 @@ def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filety
                     dt = datetime.fromisoformat(trace.header.loc['Time'].item()).astimezone(TIMEZONE)
                     y.append(dt)
                     # move the csv to its own directory
-                    try:
-                        shutil.move(file_name_joined, moveToDir)
-                    except (FileExistsError, shutil.Error):
-                        pass
-                    except Exception as e:
-                        logging.waterfall(f'{type(e).__name__}: {e}')
-                        return
+                    if moveFlag:
+                        try:
+                            shutil.move(file_name_joined, moveToDir)
+                        except (FileExistsError, shutil.Error):
+                            pass
+                        except Exception as e:
+                            logging.waterfall(f'{type(e).__name__}: {e}')
+                            return
             
             # GENERATE WATERFALL PLOT
             wfplotdir = _mkdir(topath, 'Waterfall-Plots')
