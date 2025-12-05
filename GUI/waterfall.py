@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.dates as mdates
 import pytz
 import numpy as np
+import plotly.express as px
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 from datetime import datetime, timedelta
@@ -23,8 +24,8 @@ def _mkdir(path: str, subfolder: str | list[str] | tuple[str]):
         logging.waterfall(f"Folder(s) '{subfolder}' created successfully in {path}")
     except FileExistsError:
         pass
-    except OSError as e:
-        logging.waterfall(f"Error creating folder: {e}")
+    except Exception as e:
+        logging.waterfall(f'{type(e).__name__}: {e}')
     
     return _dir
 
@@ -69,9 +70,9 @@ def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filety
     
     # This iteration occurs once for every date in datesToProcess (Once for every date above CSV_THRESHOLD)
     while datesToProcess:
-        x = []                                  # Frequency (length n is number of points)
-        y = []                                  # Time (length m is number of csvs)
-        z = []                                  # Amplitude (shape is m by n)
+        x = []                                  # Frequency of shape (1, n) --> (length n is number of points)
+        y = []                                  # Time of shape (m,) --> (length m is number of csvs)
+        z = []                                  # Amplitude of shape (m, n)
         dateToProcess = datesToProcess[0]       # Date in YYYY-MM-DD format
         receivers = []                          # All receivers present in csvDate
         receiversToProcess = []                 # All receivers with a count above CSV_THRESHOLD in csvData
@@ -114,14 +115,10 @@ def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filety
                     # move the csv to its own directory
                     try:
                         shutil.move(file_name_joined, moveToDir)
-                    except FileNotFoundError:
-                        logging.waterfall(f"Error: The source file '{file_name_joined}' was not found.")
-                        return
-                    except PermissionError:
-                        logging.waterfall(f"Error: Permission denied to move '{file_name_joined}'.")
-                        return
+                    except (FileExistsError, shutil.Error):
+                        pass
                     except Exception as e:
-                        logging.waterfall(f"An unexpected error occurred: {e}")
+                        logging.waterfall(f'{type(e).__name__}: {e}')
                         return
             
             # GENERATE WATERFALL PLOT
@@ -129,7 +126,7 @@ def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filety
             wfplotfullpath = _mkdir(wfplotdir, (receiver, _year, _month))
             wfplotfullpathandfilename = os.path.join(wfplotfullpath, _filename + filetype)
             # plot
-            fig, ax = plt.subplots(layout='constrained')
+            mpfig, ax = plt.subplots(layout='constrained')
             mesh = ax.pcolormesh(x, y, z, shading='nearest', vmin=-80, vmax=-30)
             ax.set_title(f'{_filename}')
             ax.set_xlabel("Frequency (Hz)")
@@ -145,6 +142,29 @@ def makeWaterfalls(frompath, topath, threshold = 100, tz = 'US/Mountain', filety
             logging.waterfall(f'File {_filename + filetype} successfully saved to {topath}')
 
             # GENERATE WATERFALL PLOTLY HTML
+            plotlydir = _mkdir(topath, 'Waterfall-html')
+            plotlyfullpath = _mkdir(plotlydir, (receiver, _year, _month))
+            plotlyfullpathandfilename = os.path.join(plotlyfullpath, _filename + '.html')
+            pfig = px.imshow(
+                z,
+                x = np.array(x).squeeze(),      # Frequency (must remove leading dimension)
+                y = y,                          # Time (datetime)
+                origin="upper",                 # matches Matplotlib invert_yaxis()
+                aspect="auto",
+                zmin=-80,
+                zmax=-30,
+                color_continuous_scale="Viridis",
+            )
+
+            pfig.update_layout(
+                title=_filename,
+                xaxis_title="Frequency (Hz)",
+                yaxis_title=f"Time ({TIMEZONE.zone})",
+                coloraxis_colorbar=dict(title="Magnitude (dBm)"),
+            )
+            pfig.update_xaxes(tickformat="~s")          # x-axis: engineering notation (like EngFormatter) e.g., 1k, 10M, etc.
+            pfig.update_yaxes(tickformat="%H:%M")       # y-axis: datetime formatting (HH:MM)
+            pfig.write_html(plotlyfullpathandfilename)  # Save to HTML
 
             # GENERATES AVERAGE CSV
             avgdir = _mkdir(topath, 'Averages')

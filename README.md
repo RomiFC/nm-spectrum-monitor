@@ -78,6 +78,10 @@ pip install matplotlib
 ```
 
 ```bash
+pip install plotly
+```
+
+```bash
 pip install numpy
 ```
 
