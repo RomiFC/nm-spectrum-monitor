@@ -177,8 +177,8 @@ def makeWaterfalls(frompath:str, topath:str, threshold:int = 100, tz:str = 'US/M
 
             # GENERATES AVERAGE CSV
             avgdir = _mkdir(topath, 'Averages')
-            fullavgdir = _mkdir(topath, ('Averages', receiver, _year, _month))
-            fullavgdriftdir = _mkdir(fullavgdir, ('DRIFT', receiver, _year, _month))
+            fullavgdir = _mkdir(avgdir, (receiver, _year, _month))
+            fullavgdriftdir = _mkdir(avgdir, ('DRIFT', receiver, _year, _month))
             average = np.array((np.array(x[0][:]), np.mean(z, axis=0)))
             # Create pandas dataframe by using the last collected trace header as the average trace header
             datarow = pd.DataFrame({'index': ['DATA',], 'Value': [np.nan,]})
