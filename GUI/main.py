@@ -170,8 +170,7 @@ class Parameter:
             widget (ttk.Widget or Tkinter_variable, optional): Associated tkinter widget. Defaults to None.
             value(any, optional): Parameter value. Defaults to None.
         """
-        if arg is not None:
-            self.arg = arg
+        self.arg = arg
         if widget is not None:
             self.widget = widget
         if value is not None:
