@@ -466,7 +466,7 @@ class FrontEnd():
                     return
         elif device == 'motor':
             self.motorPort = self.motorSelectBox.get()[:4]
-            self.motor.openSerial(self.motorPort)
+            self.motor.openSerial(self.motorPort, baud=38400)
         elif device == 'plc':
             self.PLC.openSerial(port)
             self.PLC.threadHandler(self.PLC.queryStatus)
@@ -1401,10 +1401,9 @@ class AziElePlot(FrontEnd):
         self.bearingDisplay = FigureCanvasTkAgg(fig, master=self.parent)
         self.bearingDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, columnspan=2)
 
-
         # CONTROL FRAME
         self.ctrlFrame = ttk.Frame(self.parent)
-        self.ctrlFrame.grid(row=2, column=0, sticky=NSEW, columnspan=1)
+        self.ctrlFrame.grid(row=1, column=0, sticky=NSEW, columnspan=1)
         for x in range(4):
             self.ctrlFrame.columnconfigure(x, weight=1)
         # FEEDBACK
@@ -1440,6 +1439,40 @@ class AziElePlot(FrontEnd):
         elEntry = tk.Entry(self.elEntryFrame, font=font, background=elArrows.cget('background'), borderwidth=0, validate="key", validatecommand=(isNumWrapper, '%P'))
         elEntry.grid(row=0, column=1, sticky=NSEW)
 
+        # ICON FRAMES
+        self.masterIconFrame = ttk.Frame(self.parent)
+        self.masterIconFrame.place(x=0, y=0, anchor=NW)
+        self.lotoIcon = ttk.Label(self.masterIconFrame, text = 'L', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.lotoIcon.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.lotoIcon, msg='Lockout/Tagout Open', follow=True, delay=0.25)
+        self.lockedIcon = ttk.Label(self.masterIconFrame, text = LOCK_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.lockedIcon.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.lockedIcon, msg='Resource locked by another thread', follow=True, delay=0.25)
+
+        self.xIconFrame = ttk.Frame(self.parent)
+        self.xIconFrame.place(x=0, y=0, anchor=SW, in_=self.ctrlFrame)
+        self.xDriveEnable = ttk.Label(self.xIconFrame, text = 'E', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.xDriveEnable.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.xDriveEnable, msg='Azimuth Drive Enabled', follow=True, delay=0.25)
+        self.xActive = ttk.Label(self.xIconFrame, text = 'A', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.xActive.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.xActive, msg='Azimuth Jog Active', follow=True, delay=0.25)
+        self.xKamr = ttk.Label(self.xIconFrame, text = 'K', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.xKamr.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.xKamr, msg='Azimuth Kill All Motion Request', follow=True, delay=0.25)
+
+        self.yIconFrame = ttk.Frame(self.parent)
+        self.yIconFrame.place(relx=1, y=0, anchor=SE, in_=self.ctrlFrame)
+        self.yDriveEnable = ttk.Label(self.yIconFrame, text = 'E', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.yDriveEnable.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.yDriveEnable, msg='Elevation Drive Enabled', follow=True, delay=0.25)
+        self.yActive = ttk.Label(self.yIconFrame, text = 'A', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.yActive.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.yActive, msg='Elevation Jog Active', follow=True, delay=0.25)
+        self.yKamr = ttk.Label(self.yIconFrame, text = 'K', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.yKamr.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.yKamr, msg='Elevation Kill All Motion Request', follow=True, delay=0.25)
+
         # BIND ENTRY WIDGETS
         azEntry.bind('<Return>', lambda event: self.threadHandler(self.sendMoveCommand, event, value=azEntry.get(), axis='az'))
         elEntry.bind('<Return>', lambda event: self.threadHandler(self.sendMoveCommand, event, value=elEntry.get(), axis='el'))
@@ -1451,6 +1484,23 @@ class AziElePlot(FrontEnd):
         # Generate thread to handle live data plot in background
         motorLoop = threading.Thread(target=self.bearingDisplayLoop, daemon=True)
         motorLoop.start()
+
+    def iconStateMachine(self):
+        _bits = [
+            'BIT8465', 'BIT8497',
+            'BIT792', 'BIT824',
+            'BIT8467', 'BIT8499'
+        ]
+        _icons = [self.xDriveEnable, self.yDriveEnable,
+                  self.xActive, self.yActive,
+                  self.xKamr, self.yKamr
+        ]
+
+        for bit, icon in zip(_bits, _icons):
+            if self.queryBit(bit):
+                icon.configure(state='enable')
+            else:
+                icon.configure(state='disable')
 
     def drawArrow(self, axis, angle):
         """Draws arrow on the matplotlib axis from the origin at the angle specified. Intended for polar plots only.
@@ -1533,7 +1583,7 @@ class AziElePlot(FrontEnd):
         Args:
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
-        _frames = (self.azEntryFrame, self.elEntryFrame)
+        _frames = (self.azEntryFrame, self.elEntryFrame, self.masterIconFrame, self.xIconFrame, self.yIconFrame)
         _widgets = ()
 
         if action == ENABLE:
@@ -1600,8 +1650,10 @@ class AziElePlot(FrontEnd):
                         motorLock.release()
 
                 case state.LOOP:
+                    self.toggleInputs(ENABLE)
                     try:
                         motorLock.acquire()
+                        self.iconStateMachine()
                         # Check bit 516 (In motion) to determine whether or not to allow inputs
                         # TODO: Find out why bit 516 returns 0 even when moving
                         # response = self.Motor.query('PRINT P516').splitlines()
@@ -1667,6 +1719,16 @@ class AziElePlot(FrontEnd):
                 self.axis0 = False
             else:
                 raise NotImplementedError(f'Unexpected response from AXIS1: {drive}')
+            
+    def queryBit(self, bit:str) -> bool:
+        with motorLock:
+            value = self.Motor.query(f'PRINT {bit}')
+            if '1' in value:
+                return True
+            elif '0' in value:
+                return False
+            else:
+                raise NotImplementedError(f'Query \'PRINT {bit}\' returned unexpected response: {value}')
 
 # Thread target to monitor IO connection status
 def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
