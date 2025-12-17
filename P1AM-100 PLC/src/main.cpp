@@ -86,6 +86,18 @@ int parseInput() {
 }
 
 /**
+ * @brief Takes two 8 bit numbers, returns the bitwise AND of their MSB
+ * 
+ * @param a 
+ * @param b 
+ * @return uint8_t 
+ */
+uint8_t msbAnd(uint8_t a, uint8_t b) {
+    // Extract MSBs, AND them, and place result in MSB position
+    return ((a >> 7) & 1 & ((b >> 7) & 1)) << 7;
+}
+
+/**
  * @brief Setup runs once during power on, initializes serial communication and PLC modules
  * 
  */
@@ -117,25 +129,30 @@ void loop() {
         Serial.println(outputStringBuffer);
     }
 
+    // Set the WLIGHT bit to its correct value based on `status`
+    uint8_t WLIGHT_STATUS = msbAnd(status, WLIGHT_ON);
+    opCode = (opCode | WLIGHT_STATUS);
+    uint8_t opCodeMasked = opCode & WLIGHT_CLR;
     // Test opCode for valid commands
-    if (opCode == (WLIGHT_ON | WLIGHT_EXCL)) {
-        Serial.println("WLIGHT ON");
-        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_WLIGHT);
-        status = status | WLIGHT_ON;
-        return;
-    }
-    if (opCode == WLIGHT_EXCL) {
-        Serial.println("WLIGHT OFF");
-        P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, CH_WLIGHT);
-        status = status & WLIGHT_CLR;
-        return;
-    }
-    switch (opCode & WLIGHT_CLR) {
+    switch (opCodeMasked) {
         case SLEEP:
             Serial.println("Sleep issued: all outputs disabled.");
             P1.writeDiscrete(0, SLOT_DISCRETE_OUT_15, 0);
             status = opCode;
             return;
+        case WLIGHT_TOGGLE:
+            if (status & WLIGHT_ON){
+                Serial.println("WLIGHT OFF");
+                P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, CH_WLIGHT);
+                status = status & WLIGHT_CLR;
+                return;
+            }
+            else {
+                Serial.println("WLIGHT ON");
+                P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_WLIGHT);
+                status = status | WLIGHT_ON;
+                return;
+            }
         case RETURN_OPCODES:
             returnOpCodes = !returnOpCodes;
             if (returnOpCodes) Serial.println("Parsed OpCodes will be returned.");
@@ -176,8 +193,7 @@ void loop() {
         default:
             break;
     }
-    opCode = opCode & WLIGHT_CLR;
-    if (opCode == (EMS_SELECT | CH1_SELECT)) {
+    if (opCodeMasked == (EMS_SELECT | CH1_SELECT)) {
         sprintf(outputStringBuffer, "EMS Chain 1 selected: writing to channels %d and %d.", CH_RF1, CH_EMS_SELECT);
         Serial.println(outputStringBuffer);
         P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
@@ -186,7 +202,7 @@ void loop() {
         status = opCode;
         return;
     }
-    if (opCode == (EMS_SELECT | CH2_SELECT)){
+    if (opCodeMasked == (EMS_SELECT | CH2_SELECT)){
         sprintf(outputStringBuffer, "EMS Chain 2 selected: writing to channels %d and %d.", CH_RF2, CH_EMS_SELECT);
         Serial.println(outputStringBuffer);
         P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
@@ -195,7 +211,7 @@ void loop() {
         status = opCode;
         return;
     }
-    if (opCode == (DFS_SELECT | CH1_SELECT)){
+    if (opCodeMasked == (DFS_SELECT | CH1_SELECT)){
         sprintf(outputStringBuffer, "DFS Chain 1 selected: writing to channels %d and %d.", CH_RF1, CH_DFS_SELECT);
         Serial.println(outputStringBuffer);
         P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);

@@ -25,7 +25,7 @@
  */
 
 constexpr uint8_t WLIGHT_ON             = (0b10000000);
-constexpr uint8_t WLIGHT_ON_EXCL        = (0b10001111);
+constexpr uint8_t WLIGHT_TOGGLE         = (0b00001111);
 constexpr uint8_t WLIGHT_CLR            = (0b01111111);
 
 constexpr uint8_t RETURN_OPCODES        = (0b00000001);
