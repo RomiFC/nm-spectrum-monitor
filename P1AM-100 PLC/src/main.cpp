@@ -22,14 +22,11 @@
 
 // OUTPUT CHANNELS
 #define ALL_CHANNELS            0
-#define CH_EMS_RF1              1
-#define CH_EMS_RF2              2
-#define CH_EMS_RF3              3
-#define CH_EMS_RF4              4
-#define CH_DFS_RF1              5
-#define CH_DFS_RF2              6
-#define CH_DFS_RF3              7
-#define CH_DFS_RF4              8
+#define CH_RF1                  1
+#define CH_RF2                  2
+#define CH_RF3                  3
+#define CH_RF4                  4
+#define CH_WLIGHT               5
 #define CH_EMS_SELECT           9
 #define CH_DFS_SELECT           10
 
@@ -57,37 +54,35 @@ static inline void clearSerialBuffer()
  * Calls clearSerialBuffer() if too many characters are found so as to not retain buffer characters on the next loop iteration.
  * If the buffer contains ASCII characters that are not 0 or 1 after a sequence of 0s and/or 1s, they will be ignored.
  * 
- * @return int binaryLiteral on success (Input successfully parsed as binary). If no valid conversion could be performed, a zero value is returned.
- * Note that it is possible for a zero value binaryLiteral to be successfully parsed and returned.
+ * @return int binaryLiteral on success (Input successfully parsed as binary). If no valid conversion could be performed, a negative value is returned.
  */
 int parseInput() {
     char* buffer = (char*)malloc(sizeof(char) * BUFFER_LENGTH);
     char* endPtr = NULL;
+    const int ERROR_VALUE = -1;
     int binaryLiteral;
     // Read BUFFER_LENGTH bytes into the buffer and test for success
     if (!Serial.readBytes(buffer, BUFFER_LENGTH)) {
         Serial.println("Read termination not found or buffer empty.");
         free(buffer);
-        return 0;
+        return ERROR_VALUE;
     }
     // Get span until newline is found (To ensure correct buffer length)
     if (strcspn(buffer, "\n") <= 1 || strcspn(buffer, "\n") > BUFFER_LENGTH) {
         Serial.println("Too many characters in buffer or buffer empty.");
         free(buffer);
         clearSerialBuffer();
-        return 0;
+        return ERROR_VALUE;
     }
     // Attempt to convert the string in buffer to a base 2 integer literal
     binaryLiteral = strtol(buffer, &endPtr, 2);
     if (buffer == endPtr) { // If a binary integer is not found, endPtr remains set to buffer
         Serial.println("No binary integer found");
         free(buffer);
-        return 0;
+        return ERROR_VALUE;
     }
     free(buffer);
     return binaryLiteral;
-    
-    
 }
 
 /**
@@ -113,7 +108,7 @@ void loop() {
     }
     // If information is available, call parseInput() and ensure a nonzero (successful) return
     opCode = parseInput();
-    if (!opCode) {
+    if (opCode < 0) {
         return;
     }
     // Print the received opCode
@@ -123,30 +118,42 @@ void loop() {
     }
 
     // Test opCode for valid commands
-    switch (opCode) {
+    if (opCode == (WLIGHT_ON | WLIGHT_EXCL)) {
+        Serial.println("WLIGHT ON");
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_WLIGHT);
+        status = status | WLIGHT_ON;
+        return;
+    }
+    if (opCode == WLIGHT_EXCL) {
+        Serial.println("WLIGHT OFF");
+        P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, CH_WLIGHT);
+        status = status & WLIGHT_CLR;
+        return;
+    }
+    switch (opCode & WLIGHT_CLR) {
         case SLEEP:
             Serial.println("Sleep issued: all outputs disabled.");
             P1.writeDiscrete(0, SLOT_DISCRETE_OUT_15, 0);
             status = opCode;
-            break;
+            return;
         case RETURN_OPCODES:
             returnOpCodes = !returnOpCodes;
             if (returnOpCodes) Serial.println("Parsed OpCodes will be returned.");
             else Serial.println("OpCode returns disabled.");
-            break;
+            return;
         case GET_FW_VERSION:
             if (P1.isBaseActive()) {
                 Serial.println(P1.getFwVersion());
             }
-            break;
+            return;
         case IS_BASE_ACTIVE:
             Serial.println(P1.isBaseActive());
-            break;
+            return;
         case PRINT_MODULES:
             if (P1.isBaseActive()) {
                 P1.printModules();
             }
-            break;
+            return;
         case CHECK_24V_SL1:
             P1.check24V(1);
         case CHECK_24V_SL2:
@@ -157,42 +164,45 @@ void loop() {
             Serial.println("Initializing...");
             while (!P1.init()){}
             status = SLEEP;
-            break;
+            return;
         case P1_DISABLE:
             Serial.println("Disabling P1AM-100 Module");
             P1.enableBaseController(false);
             status = opCode;
-            break;
+            return;
         case QUERY_STATUS:
             Serial.println(status);
-            break;
-        case EMS_CHAIN1:
-            sprintf(outputStringBuffer, "EMS Chain 1 selected: writing to channels %d and %d.", CH_EMS_RF1, CH_EMS_SELECT);
-            Serial.println(outputStringBuffer);
-            P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
-            P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_EMS_RF1);
-            P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_EMS_SELECT);
-            status = opCode;
-            break;
-        case EMS_CHAIN2:
-            sprintf(outputStringBuffer, "EMS Chain 2 selected: writing to channels %d and %d.", CH_EMS_RF2, CH_EMS_SELECT);
-            Serial.println(outputStringBuffer);
-            P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
-            P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_EMS_RF2);
-            P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_EMS_SELECT);
-            status = opCode;
-            break;
-        case DFS_CHAIN1:
-            sprintf(outputStringBuffer, "DFS Chain 1 selected: writing to channels %d and %d.", CH_DFS_RF1, CH_DFS_SELECT);
-            Serial.println(outputStringBuffer);
-            P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
-            P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_DFS_RF1);
-            P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_DFS_SELECT);
-            status = opCode;
-            break;
-        default:
-            Serial.println("Unrecognized OpCode.");
             return;
+        default:
+            break;
+    }
+    opCode = opCode & WLIGHT_CLR;
+    if (opCode == (EMS_SELECT | CH1_SELECT)) {
+        sprintf(outputStringBuffer, "EMS Chain 1 selected: writing to channels %d and %d.", CH_RF1, CH_EMS_SELECT);
+        Serial.println(outputStringBuffer);
+        P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_RF1);
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_EMS_SELECT);
+        status = opCode;
+        return;
+    }
+    if (opCode == (EMS_SELECT | CH2_SELECT)){
+        sprintf(outputStringBuffer, "EMS Chain 2 selected: writing to channels %d and %d.", CH_RF2, CH_EMS_SELECT);
+        Serial.println(outputStringBuffer);
+        P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_RF2);
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_EMS_SELECT);
+        status = opCode;
+        return;
+    }
+    if (opCode == (DFS_SELECT | CH1_SELECT)){
+        sprintf(outputStringBuffer, "DFS Chain 1 selected: writing to channels %d and %d.", CH_RF1, CH_DFS_SELECT);
+        Serial.println(outputStringBuffer);
+        P1.writeDiscrete(LOW, SLOT_DISCRETE_OUT_15, ALL_CHANNELS);
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_RF1);
+        P1.writeDiscrete(HIGH, SLOT_DISCRETE_OUT_15, CH_DFS_SELECT);
+        status = opCode;
+        return;
     }
 }
 

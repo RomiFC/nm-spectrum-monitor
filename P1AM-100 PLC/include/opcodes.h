@@ -4,16 +4,19 @@
  * @brief Header file that contains opcode declarations for the P1AM-100 PLC.
  * 
  * Each opcode is an 8-bit binary number with the following syntax:
- * - Leading 1
+ * - 1-bit warning light bool
  * - 1 for selection operation
  * - 2-bit antenna selection code (00 for EMS, 01 for DFS)
  * - 4-bit RF chain selection code
  * 
  * OR
  * 
- * - Leading 1
+ * - 1-bit warning light bool
  * - 0 for config or sleep operation
  * - 6-bit config opcode
+ * 
+ * Note that the warning light bit is a "don't care" for received opcodes but 
+ * is stored and transmitted to the Python program in the status bitmask
  * 
  * @date Last Modified: 2024-08-07
  * 
@@ -21,50 +24,43 @@
  * 
  */
 
+constexpr uint8_t WLIGHT_ON             = (0b10000000);
+constexpr uint8_t WLIGHT_ON_EXCL        = (0b10001111);
+constexpr uint8_t WLIGHT_CLR            = (0b01111111);
 
-#define SLEEP                   (0b10000000)
-#define RETURN_OPCODES          (0b10000001)
-#define GET_FW_VERSION          (0b10000010)
-#define PRINT_MODULES           (0b10000011)
-#define IS_BASE_ACTIVE          (0b10000100)
-#define P1_INIT                 (0b10000101)
-#define P1_DISABLE              (0b10000110)
-#define QUERY_STATUS            (0b10000111)
-#define CHECK_24V_SL1           (0b10001001)
-#define CHECK_24V_SL2           (0b10001010)
-#define CHECK_24V_SL3           (0b10001011)
-#define READ_STATUS_SL1         (0b10010001)
-#define READ_STATUS_SL2         (0b10010010)
-#define READ_STATUS_SL3         (0b10010011)
-#define EMS_CHAIN1              (0b11000000)
-#define EMS_CHAIN2              (0b11000001)
-#define EMS_CHAIN3              (0b11000010)
-#define EMS_CHAIN4              (0b11000011)
-#define EMS_CHAIN5              (0b11000100)
-#define EMS_CHAIN6              (0b11000101)
-#define EMS_CHAIN7              (0b11000110)
-#define EMS_CHAIN8              (0b11000111)
-#define EMS_CHAIN9              (0b11001000)
-#define EMS_CHAIN10             (0b11001001)
-#define EMS_CHAIN11             (0b11001010)
-#define EMS_CHAIN12             (0b11001011)
-#define EMS_CHAIN13             (0b11001100)
-#define EMS_CHAIN14             (0b11001101)
-#define EMS_CHAIN15             (0b11001110)
-#define EMS_CHAIN16             (0b11001111)
-#define DFS_CHAIN1              (0b11010000)
-#define DFS_CHAIN2              (0b11010001)
-#define DFS_CHAIN3              (0b11010010)
-#define DFS_CHAIN4              (0b11010011)
-#define DFS_CHAIN5              (0b11010100)
-#define DFS_CHAIN6              (0b11010101)
-#define DFS_CHAIN7              (0b11010110)
-#define DFS_CHAIN8              (0b11010111)
-#define DFS_CHAIN9              (0b11011000)
-#define DFS_CHAIN10             (0b11011001)
-#define DFS_CHAIN11             (0b11011010)
-#define DFS_CHAIN12             (0b11011011)
-#define DFS_CHAIN13             (0b11011100)
-#define DFS_CHAIN14             (0b11011101)
-#define DFS_CHAIN15             (0b11011110)
-#define DFS_CHAIN16             (0b11011111)
+constexpr uint8_t RETURN_OPCODES        = (0b00000001);
+constexpr uint8_t SLEEP                 = (0b00000000);
+constexpr uint8_t GET_FW_VERSION        = (0b00000010);
+constexpr uint8_t PRINT_MODULES         = (0b00000011);
+constexpr uint8_t IS_BASE_ACTIVE        = (0b00000100);
+constexpr uint8_t P1_INIT               = (0b00000101);
+constexpr uint8_t P1_DISABLE            = (0b00000110);
+constexpr uint8_t QUERY_STATUS          = (0b00000111);
+constexpr uint8_t CHECK_24V_SL1         = (0b00001001);
+constexpr uint8_t CHECK_24V_SL2         = (0b00001010);
+constexpr uint8_t CHECK_24V_SL3         = (0b00001011);
+constexpr uint8_t WLIGHT_EXCL           = (0b00001111);
+constexpr uint8_t READ_STATUS_SL1       = (0b00010001);
+constexpr uint8_t READ_STATUS_SL2       = (0b00010010);
+constexpr uint8_t READ_STATUS_SL3       = (0b00010011);
+
+constexpr uint8_t EMS_SELECT            = (0b01000000);
+constexpr uint8_t DFS_SELECT            = (0b01010000);
+
+constexpr uint8_t CH1_SELECT            = (0b01000000);
+constexpr uint8_t CH2_SELECT            = (0b01000001);
+constexpr uint8_t CH3_SELECT            = (0b01000010);
+constexpr uint8_t CH4_SELECT            = (0b01000011);
+constexpr uint8_t CH5_SELECT            = (0b01000100);
+constexpr uint8_t CH6_SELECT            = (0b01000101);
+constexpr uint8_t CH7_SELECT            = (0b01000110);
+constexpr uint8_t CH8_SELECT            = (0b01000111);
+constexpr uint8_t CH9_SELECT            = (0b01001000);
+constexpr uint8_t CH10_SELECT           = (0b01001001);
+constexpr uint8_t CH11_SELECT           = (0b01001010);
+constexpr uint8_t CH12_SELECT           = (0b01001011);
+constexpr uint8_t CH13_SELECT           = (0b01001100);
+constexpr uint8_t CH14_SELECT           = (0b01001101);
+constexpr uint8_t CH15_SELECT           = (0b01001110);
+constexpr uint8_t CH16_SELECT           = (0b01001111);
+
