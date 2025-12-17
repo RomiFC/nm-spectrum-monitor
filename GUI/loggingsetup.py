@@ -43,7 +43,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
     setattr(logging, methodName, logToRoot)
 
 def loggingLevelHandler(level):
-    """Changes logging level of 'logger' to debug, verbose, or info, depending on argument.
+    """Changes logging level of `logger` to debug, verbose, or info, depending on argument.
 
     Args:
         level (int): 1 for INFO, 2 for VERBOSE, 3 for DEBUG.
@@ -60,5 +60,7 @@ addLoggingLevel("TERMINAL", logging.INFO + 1)
 addLoggingLevel("SERIAL", logging.INFO + 2)
 addLoggingLevel("TIMEOUT", logging.INFO + 3)
 addLoggingLevel("MOTOR", logging.INFO + 4)
+addLoggingLevel("DRIFT", logging.INFO + 5)
+addLoggingLevel("WATERFALL", logging.INFO + 6)
 
 addLoggingLevel("VERBOSE", VERBOSE)

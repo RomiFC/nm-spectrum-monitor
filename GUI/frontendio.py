@@ -4,7 +4,6 @@
 # MISC LIBRARIES
 import sys
 import logging
-from data import *
 from opcodes import *
 import threading
 

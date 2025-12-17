@@ -4,17 +4,22 @@ from frontendio import *
 from timestamp import *
 from opcodes import *
 from loggingsetup import *
+from automation import *
+from drift import *
+from waterfall import *
 
 # OTHER MODULES
 import threading
 import sys
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 import datetime as dt
+from tzlocal import get_localzone
 from pyvisa import attributes
 import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.triggers.cron import CronTrigger
 import logging
 import decimal
 import traceback
@@ -25,6 +30,7 @@ from pathlib import Path
 # MATPLOTLIB
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.ticker import EngFormatter
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # TKINTER
@@ -38,10 +44,12 @@ from tkinter.ttk import *
 from ttkthemes import ThemedTk
 from tkcalendar import Calendar, DateEntry
 from tktimepicker import SpinTimePickerModern, constants
+from tktooltip import ToolTip
 
 # CONSTANTS
 IDLE_DELAY = 1.0
 ANALYZER_LOOP_DELAY = 0.5
+ANALYZER_REFRESH_DELAY = 0.3
 MOTOR_LOOP_DELAY = 0.5
 STATUS_MONITOR_DELAY = 0.2
 RETURN_ERROR = 1
@@ -61,6 +69,25 @@ ZERO = 'zero'
 ROOT_PADX = 5
 ROOT_PADY = 5
 COLOR_GREEN = '#00ff00'
+SINGLE_ICON = '\u2192'
+CONT_ICON = '\u2B8C'
+RESTART_ICON = '\u2B6F'
+SWEEPING_ICON = '\U0001F9F9'
+SETTLING_ICON = '\u2325'
+CALIBRATING_ICON = '\U0001F527'
+MEASURING_ICON = '\u2221'
+LOCK_ICON = '\U0001F512'
+DEF_WF_FROM_PATH = os.getcwd()
+DEF_WF_TO_PATH = os.getcwd()
+DEF_WF_THRESHOLD = 100
+DEF_WF_TZ = 'US/Mountain'
+DEF_WF_FILETYPE = '.png'
+DEF_WF_DPI = 600
+WATERFALL_JOB_ID = 'waterfall'
+DEF_DRIFT_FROM_PATH = os.getcwd()
+DEF_DRIFT_TO_PATH = os.getcwd()
+DRIFT_JOB_ID = 'driftprocessing'
+LOCAL_TIMEZONE = get_localzone()
 
 # STATE CONSTANTS
 class state:
@@ -102,7 +129,6 @@ motorLock = threading.RLock()       # For motor controller
 plcLock = threading.RLock()         # For PLC
 specPlotLock = threading.RLock()    # For matplotlib spectrum plot
 bearingPlotLock = threading.RLock() # For matplotlib antenna direction plot
-autoQueueLock = threading.RLock()   # For list of automated sweep datetimes
 
 # AUTOMATION PARAMETERS
 executors = {
@@ -112,14 +138,10 @@ job_defaults = {
     'coalesce': cfg['automation']['coalesce'],
     'max_instances': cfg['automation']['job_max_instances']
 }
-class Automation():
-    def __init__(self, executors=None, job_defaults=None):
-        self.queue = []
-        self.state = state.IDLE
-        self.filePath = os.getcwd()
-        self.scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
+automation = Automation(defaultstate=state.IDLE, executors=executors, job_defaults=job_defaults)
 
-automation = Automation(executors=executors, job_defaults=job_defaults)
+# DRIFT/WATERFALL SCHEDULER
+dwfScheduler = BackgroundScheduler()
 
 # SPECTRUM ANALYZER PARAMETERS
 class Parameter:
@@ -148,8 +170,7 @@ class Parameter:
             widget (ttk.Widget or Tkinter_variable, optional): Associated tkinter widget. Defaults to None.
             value(any, optional): Parameter value. Defaults to None.
         """
-        if arg is not None:
-            self.arg = arg
+        self.arg = arg
         if widget is not None:
             self.widget = widget
         if value is not None:
@@ -178,9 +199,25 @@ AttenType       = Parameter('Auto Attenuation', ':SENS:POWER:ATT:AUTO', log=Fals
 XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
-TraceType       = Parameter('Trace Type', 'TRACE:TYPE')
+TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
+AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
+AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
+AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
+SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
+TimeParameter   = Parameter('Time', None)
 
 # real code starts here
+def threadHandler(target, args=(), kwargs={}):
+    """Generates a new daemon thread to handle blocking routines without blocking main thread.
+
+    Args:
+        target (method): Callable object to be invoked by the run() method.
+        args (tuple, optional): List or tuple for target invocation. Defaults to ().
+        kwargs (dict, optional): Dictionary of keyword arguments for target invocation. Defaults to {}.
+    """
+    thread = threading.Thread(target = target, args = args, kwargs = kwargs, daemon=True)
+    thread.start()
+
 def isNumber(input):
     """is it a number
 
@@ -235,6 +272,15 @@ def clearAndSetWidget(widget, arg):
             widget.insert(0, arg)
             logging.debug(f"clearAndSetWidget passed argument {arg} ({type(arg)}) to {id} ({type(widget)}).")
         widget.configure(state=state)
+    # Set textbox widgets
+    if isinstance(widget, (tk.Text,)):
+        state = widget.cget("state")
+        if state != NORMAL:
+            widget.configure(state=NORMAL)
+        widget.delete(1.0, END)
+        widget.insert(1.0, arg)
+        widget.configure(state=state)
+
 
 def disableChildren(parent):
     """Tries to set the state of the child widgets of parent to 'disable'.
@@ -420,7 +466,7 @@ class FrontEnd():
                     return
         elif device == 'motor':
             self.motorPort = self.motorSelectBox.get()[:4]
-            self.motor.openSerial(self.motorPort)
+            self.motor.openSerial(self.motorPort, baud=38400)
         elif device == 'plc':
             self.PLC.openSerial(port)
             self.PLC.threadHandler(self.PLC.queryStatus)
@@ -438,18 +484,13 @@ class FrontEnd():
             widget.configure(text=text)
         if background is not None:
             widget.configure(background=background)
-
     
     def onExit( self ):
-        """Ask to close serial communication when 'X' button is pressed. *do we need this?"""
-        SaveCheck = messagebox.askokcancel( title = "Window closing", message = "Do you want to close communication to the motor?" )
-        if SaveCheck is True:      
-            while (self.motor.ser.is_open):
-                self.motor.CloseSerial()
-            root.quit()
-            logging.info("Program executed with exit code: 0")
-        else:
-            pass
+        """Cleanup""" 
+        while (self.motor.ser.is_open):
+            self.motor.CloseSerial()
+        root.quit()
+        logging.info("Program executed with exit code: 0")
 
     def openHelp(self):
         """Opens help menu on a new toplevel window.
@@ -457,13 +498,13 @@ class FrontEnd():
         continueCheck = messagebox.askokcancel(title='Open wiki', message='This will open a new web browser page. Continue?')
         if continueCheck:
             webbrowser.open('https://github.com/RomiFC/RF-DFS/wiki')
-        
 
     def openConfig(self):
         """Opens configuration menu on a new toplevel window.
         """
         _parent = Toplevel()
         _parent.title('Configure')
+        _parent.attributes('-topmost', True)
 
         def onRefreshPress():
             """Update the values in the SCPI instrument selection box
@@ -645,6 +686,7 @@ class SpecAn(FrontEnd):
         self.singleSweepFlag = False
         # STATE VARIABLES
         self.loopState = state.IDLE
+        self.operationStatusRegister = 0
         # CONSTANTS
         self.RBW_FILTER_SHAPE_VALUES = ('Gaussian', 'Flattop')
         self.RBW_FILTER_SHAPE_VAL_ARGS = ('GAUS', 'FLAT')
@@ -652,28 +694,36 @@ class SpecAn(FrontEnd):
         self.RBW_FILTER_TYPE_VAL_ARGS = ('DB3', 'DB6', 'IMP', 'NOISE')
         self.TRACE_TYPE_VALUES = ('Clear/Write', 'Trace Average', 'Max Hold', 'Min Hold')
         self.TRACE_TYPE_VAL_ARGS = ('WRIT', 'AVER', 'MAXH', 'MINH')
+        self.AVG_TYPE_VALUES = ('Log-Power (Video)', 'Power (RMS)', 'Voltage')
+        self.AVG_TYPE_VAL_ARGS = ('LOG', 'RMS', 'SCALAR')
         # TKINTER VARIABLES
-        global tkSweepType, tkSpanType, tkRbwType, tkVbwType, tkBwRatioType, tkAttenType
+        global tkSweepType, tkSpanType, tkRbwType, tkVbwType, tkBwRatioType, tkAttenType, tkAvgType
         tkSweepType = BooleanVar()
         tkSpanType = BooleanVar()
         tkRbwType = BooleanVar()
         tkVbwType = BooleanVar()
         tkBwRatioType = BooleanVar()
         tkAttenType = BooleanVar()
+        tkAvgType = BooleanVar()
         # PLOT PARAMETERS
-        self.color = None
+        self.color = '#1f77b4'
         self.marker = None
         self.linestyle = None
         self.linewidth = None
         self.markersize = None
+        # STYLE
+        s = ttk.Style()
+        s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
+        s.configure('Icon.TLabel', font=cfg['theme']['icon_font'], justify=CENTER)
         # VISA OBJECT
         self.Vi = Vi
         # PARENT
         spectrumFrame = parentWidget
-        spectrumFrame.rowconfigure(0, weight=1)     # Allow this row to resize
-        spectrumFrame.rowconfigure(1, weight=0)     # Prevent this row from resizing
+        spectrumFrame.rowconfigure(0, weight=0)     # Prevent this row to resize
+        spectrumFrame.rowconfigure(1, weight=1)     # Allow this row from resizing
         spectrumFrame.rowconfigure(2, weight=0)     # Prevent this row from resizing
         spectrumFrame.rowconfigure(3, weight=0)     # Prevent this row from resizing
+        spectrumFrame.rowconfigure(4, weight=0)     # Prevent this row from resizing
         spectrumFrame.columnconfigure(0, weight=1)  # Allow this column to resize
         spectrumFrame.columnconfigure(1, weight=0)  # Prevent this column from resizing
 
@@ -682,23 +732,61 @@ class SpecAn(FrontEnd):
         self.ax = self.fig.add_subplot()
         self.ax.set_title("Spectrum Plot")
         self.ax.set_xlabel("Frequency (Hz)")
-        self.ax.set_ylabel("Power Spectral Density (dBm/RBW)")
+        self.ax.set_ylabel("Power (dBm)")
         self.ax.autoscale(enable=False, tight=True)
         self.ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
         self.ax.xaxis.set_major_formatter(ticker.EngFormatter(unit=''))
+        self.fig.subplots_adjust(bottom=0.12, top=0.92)
         self.spectrumDisplay = FigureCanvasTkAgg(self.fig, master=spectrumFrame)
-        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=4)
+        self.spectrumDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, rowspan=5)
 
-        # MEASUREMENT COMMANDS
-        measurementTab = ttk.Notebook(spectrumFrame)
+        # ICON FRAME
+        self.iconFrame = ttk.Frame(spectrumFrame)
+        self.iconFrame.place(x=0, rely=1, anchor=SW)
+        self.sweepIcon = ttk.Label(self.iconFrame, text = SINGLE_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.sweepIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.sweepIcon, msg='Single/Continuous', follow=True, delay=0.25)
+        self.sweepingIcon = ttk.Label(self.iconFrame, text = SWEEPING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.sweepingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.sweepingIcon, msg='Sweeping', follow=True, delay=0.25)
+        self.settlingIcon = ttk.Label(self.iconFrame, text = SETTLING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.settlingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.settlingIcon, msg='Settling', follow=True, delay=0.25)
+        self.calibratingIcon = ttk.Label(self.iconFrame, text = CALIBRATING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.calibratingIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.calibratingIcon, msg='Calibrating', follow=True, delay=0.25)
+        self.measuringIcon = ttk.Label(self.iconFrame, text = MEASURING_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.measuringIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.measuringIcon, msg='Measuring', follow=True, delay=0.25)
+        self.lockedIcon = ttk.Label(self.iconFrame, text = LOCK_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.lockedIcon.pack(side=BOTTOM, ipadx=4, ipady=1)
+        ToolTip(self.lockedIcon, msg='Resource locked by another thread', follow=True, delay=0.25)
+
+        # MEASUREMENT TAB SELECTION
+        tabText = ['Frequency', 'Bandwidth', 'Amplitude', 'Sweep', 'Trace']
+        measurementTab = ttk.Notebook(spectrumFrame, style="Custom.TNotebook")
         self.tab1 = ttk.Frame(measurementTab)
         self.tab2 = ttk.Frame(measurementTab)
         self.tab3 = ttk.Frame(measurementTab)
-        measurementTab.add(self.tab1, sticky=NSEW, text="Freq")
-        measurementTab.add(self.tab2, sticky=NSEW, text="BW")
-        measurementTab.add(self.tab3, sticky=NSEW, text="Amp")
-        measurementTab.grid(row=0, column=1, sticky=NSEW)
+        self.tab4 = ttk.Frame(measurementTab)
+        self.tab5 = ttk.Frame(measurementTab)
+        self.tab1.columnconfigure(0, weight=1)
+        self.tab2.columnconfigure(0, weight=1)
+        self.tab3.columnconfigure(0, weight=1)
+        self.tab4.columnconfigure(0, weight=1)
+        self.tab5.columnconfigure(0, weight=1)
+        measurementTab.add(self.tab1, sticky=NSEW)
+        measurementTab.add(self.tab2, sticky=NSEW)
+        measurementTab.add(self.tab3, sticky=NSEW)
+        measurementTab.add(self.tab4, sticky=NSEW)
+        measurementTab.add(self.tab5, sticky=NSEW)
+        measurementTab.grid(row=1, column=1, sticky=NSEW)
+        tabSelect = ttk.Combobox(spectrumFrame, values=tabText, state='readonly')
+        tabSelect.current(0)
+        tabSelect.grid(row=0, column=1, sticky=NSEW)
+        tabSelect.bind("<<ComboboxSelected>>", lambda event: measurementTab.select(tabSelect.current()))    # Bind combobox selection to notebook tab selection
+
 
         # MEASUREMENT TAB 1 (FREQUENCY)
         centerFreqFrame = ttk.LabelFrame(self.tab1, text="Center Frequency")
@@ -726,17 +814,6 @@ class SpecAn(FrontEnd):
         stopFreqFrame.grid(row=3, column=0, sticky=NSEW)
         self.stopFreqEntry = ttk.Entry(stopFreqFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.stopFreqEntry.pack(expand=True, fill=BOTH)
-
-        sweepTimeFrame = ttk.LabelFrame(self.tab1, text="Sweep Time")
-        sweepTimeFrame.grid(row=4, column=0, sticky=NSEW)
-        self.sweepTimeEntry = ttk.Entry(sweepTimeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
-        self.sweepTimeEntry.pack(expand=True, fill=BOTH)
-        self.sweepAutoButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Auto", value=AUTO)
-        self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
-        self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
-        
-
 
         # MEASUREMENT TAB 2 (BANDWIDTH)
         rbwFrame = ttk.LabelFrame(self.tab2, text="Res BW")
@@ -806,18 +883,60 @@ class SpecAn(FrontEnd):
         self.unitPowerEntry = ttk.Entry(unitPowerFrame, state="disabled")
         self.unitPowerEntry.pack(expand=True, fill=BOTH)
 
-        traceTypeFrame = ttk.LabelFrame(self.tab3, text='Trace Type')
-        traceTypeFrame.grid(row=5, column=0, sticky=NSEW)
+        # MEASUREMENT TAB 4 (SWEEP)
+        sweepPointsFrame = ttk.LabelFrame(self.tab4, text="Points")
+        sweepPointsFrame.grid(row=0, column=0, sticky=NSEW)
+        self.sweepPointsEntry = ttk.Entry(sweepPointsFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.sweepPointsEntry.pack(expand=True, fill=BOTH)
+
+        sweepTimeFrame = ttk.LabelFrame(self.tab4, text="Sweep Time")
+        sweepTimeFrame.grid(row=1, column=0, sticky=NSEW)
+        self.sweepTimeEntry = ttk.Entry(sweepTimeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.sweepTimeEntry.pack(expand=True, fill=BOTH)
+        self.sweepAutoButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Auto", value=AUTO)
+        self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
+        self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
+        self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
+
+        # MEASUREMENT TAB 5 (TRACE)
+        traceTypeFrame = ttk.LabelFrame(self.tab5, text='Trace Type')
+        traceTypeFrame.grid(row=0, column=0, sticky=NSEW)
         self.traceTypeCombo = ttk.Combobox(traceTypeFrame, values=self.TRACE_TYPE_VALUES)
         self.traceTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
 
+        # # Possibly needs a firmware update? N9040B doesn't recognize :AVER:COUN:CURR? for some reason
+        # currAvgCountFrame = ttk.LabelFrame(self.tab4, text='Current Avg/Hold') # current count is handled by the loop thread, not the typical setAnalyzerValue thread, also not a Parameter
+        # currAvgCountFrame.grid(row=1, column=0, sticky=NSEW)
+        # self.currAvgCountEntry = ttk.Entry(currAvgCountFrame, state="disabled")
+        # self.currAvgCountEntry.pack(anchor=W, expand=True, fill=BOTH)
+
+        avgCountFrame = ttk.LabelFrame(self.tab5, text='Average/Hold Count')
+        avgCountFrame.grid(row=2, column=0, sticky=NSEW)
+        self.avgCountEntry = ttk.Entry(avgCountFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.avgCountEntry.pack(anchor=W, expand=True, fill=BOTH)
+
+        avgTypeFrame = ttk.LabelFrame(self.tab5, text='Average Type')
+        avgTypeFrame.grid(row=3, column=0, sticky=NSEW)
+        self.avgTypeCombo = ttk.Combobox(avgTypeFrame, values=self.AVG_TYPE_VALUES)
+        self.avgTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
+        self.avgAutoButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Auto", value=AUTO)
+        self.avgAutoButton.pack(anchor=W, expand=True, fill=BOTH)
+        self.avgManButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Manual", value=MANUAL)
+        self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
+
         # SWEEP BUTTONS
-        initButton = ttk.Button(spectrumFrame, text="Initialize", command=lambda:self.setState(state.INIT))
-        initButton.grid(row=1, column=1, sticky=NSEW)
-        self.singleSweepButton = ttk.Button(spectrumFrame, text="Single Sweep", command=lambda:self.singleSweep())
-        self.singleSweepButton.grid(row=2, column=1, sticky=NSEW)
-        self.continuousSweepButton = ttk.Button(spectrumFrame, text="Continuous", command=lambda:self.toggleAnalyzerDisplay())
-        self.continuousSweepButton.grid(row=3, column=1, sticky=NSEW) 
+        loopStateFrame = tk.Frame(spectrumFrame)
+        loopStateFrame.grid(row=2, column=1, sticky=NSEW)
+        initButton = ttk.Button(loopStateFrame, text="Init", command=self.initAnalyzer)
+        initButton.grid(row=0, column=0, sticky=NSEW)
+        self.idleButton = ttk.Button(loopStateFrame, text='Idle', command=lambda:self.loopStateHandler(toState=state.IDLE))
+        self.idleButton.grid(row=0, column=1, sticky=NSEW)
+        self.loopButton = ttk.Button(loopStateFrame, text='Loop', command=lambda:self.loopStateHandler(toState=state.LOOP))
+        self.loopButton.grid(row=0, column=2, sticky=NSEW)
+        self.sweepButton = ttk.Button(spectrumFrame, text=f"Single/Cont ({SINGLE_ICON}/{CONT_ICON})", command=lambda:self.sweepButtonHandler(action='toggle'))
+        self.sweepButton.grid(row=3, column=1, sticky=NSEW)
+        self.restartButton = ttk.Button(spectrumFrame, text=f'Restart {RESTART_ICON}', command=lambda:self.sweepButtonHandler(action='restart'))
+        self.restartButton.grid(row=4, column=1, sticky=NSEW)
 
         self.bindWidgets() 
 
@@ -843,11 +962,16 @@ class SpecAn(FrontEnd):
         RbwFilterType.update(widget=self.rbwFilterTypeCombo)
         AttenType.update(widget=tkAttenType)
         YAxisUnit.update(widget=self.unitPowerEntry)
+        SweepPoints.update(widget=self.sweepPointsEntry)
         TraceType.update(widget=self.traceTypeCombo)
+        AvgType.update(widget=self.avgTypeCombo)
+        AvgAutoMan.update(widget=tkAvgType)
+        AvgHoldCount.update(widget=self.avgCountEntry)
 
         # Generate thread to handle live data plot in background
-        analyzerLoop = threading.Thread(target=self.analyzerDisplayLoop, daemon=True)
-        analyzerLoop.start()
+        self.analyzerDisplayLoopthread = threading.Thread(target=self.analyzerDisplayLoop, daemon=TRUE)
+
+        self.loopStateHandler(toState=state.IDLE)
 
     def bindWidgets(self):
         """Binds tkinter events to the widgets' respective commands.
@@ -864,6 +988,8 @@ class SpecAn(FrontEnd):
         self.yScaleEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yscale = self.yScaleEntry.get()))
         self.numDivEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, numdiv = self.numDivEntry.get()))
         self.attenEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, atten = self.attenEntry.get()))
+        self.sweepPointsEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, sweeppoints = self.sweepPointsEntry.get()))
+        self.avgCountEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, avgcount = self.avgCountEntry.get()))
 
         self.sweepAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(sweeptype=AUTO))
         self.sweepManButton.configure(command = lambda: self.setAnalyzerThreadHandler(sweeptype=MANUAL))
@@ -881,6 +1007,9 @@ class SpecAn(FrontEnd):
         self.attenAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(attentype=AUTO))
         self.attenManButton.configure(command = lambda: self.setAnalyzerThreadHandler(attentype=MANUAL))
         self.traceTypeCombo.bind("<<ComboboxSelected>>", lambda event: self.setAnalyzerThreadHandler(event, tracetype = self.traceTypeCombo.current()))
+        self.avgTypeCombo.bind("<<ComboboxSelected>>", lambda event: self.setAnalyzerThreadHandler(event, avgtype = self.avgTypeCombo.current()))
+        self.avgAutoButton.configure(command = lambda: self.setAnalyzerThreadHandler(avgautoman=AUTO))
+        self.avgManButton.configure(command = lambda: self.setAnalyzerThreadHandler(avgautoman=MANUAL))
 
     def toggleInputs(self, action):
         """Enables or disables the widgets in _frames and _widgets along with all of their children.
@@ -888,8 +1017,8 @@ class SpecAn(FrontEnd):
         Args:
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
-        _frames = (self.tab1, self.tab2, self.tab3)
-        _widgets = (self.singleSweepButton, self.continuousSweepButton)
+        _frames = (self.tab1, self.tab2, self.tab3, self.tab4, self.tab5, self.iconFrame)
+        _widgets = (self.sweepButton, self.restartButton)
 
         if action == ENABLE:
             for frame in _frames:
@@ -901,6 +1030,30 @@ class SpecAn(FrontEnd):
                 disableChildren(frame)
             for widget in _widgets:
                 widget.configure(state='disable')
+
+    def sweepButtonHandler(self, action):
+        """Issues scpi commands for the Single/Continuous and Restart buttons with resource lock.
+
+        Args:
+            action (string): Can be 'toggle', or 'restart'
+        """
+        def do():
+            with visaLock:
+                isContinuous = bool(self.Vi.openRsrc.query_ascii_values("INIT:CONT?")[0])
+                if action == 'toggle':
+                    if isContinuous:
+                        self.Vi.openRsrc.write("INIT:CONT 0")
+                    else:
+                        self.Vi.openRsrc.write("INIT:CONT 1")
+                elif action == 'restart':
+                    self.Vi.openRsrc.write("INIT:IMM")
+                isContinuous = bool(self.Vi.openRsrc.query_ascii_values(":INIT:CONT?")[0])
+                if isContinuous:
+                    self.sweepIcon.configure(text=CONT_ICON)
+                else:
+                    self.sweepIcon.configure(text=SINGLE_ICON)
+        thread = threading.Thread(target=do)
+        thread.start()
 
     def setAnalyzerPlotLimits(self, **kwargs):
         """Sets self.ax limits to parameters passed in **kwargs if they exist. If not, gets relevant widget values to set limits.
@@ -941,7 +1094,7 @@ class SpecAn(FrontEnd):
         thread = threading.Thread(target=self.setAnalyzerValue, kwargs=_dict)
         thread.start()
 
-    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, tracetype=None):
+    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, sweeppoints=None, tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
         """Issues command to spectrum analyzer with the value of kwarg as the argument and queries for widget values. If the value is None or if there are no kwargs, query the spectrum analyzer to set widget values instead.
         
         Args:
@@ -954,9 +1107,9 @@ class SpecAn(FrontEnd):
             vbw (float, optional): Video bandwidth. Defaults to None.
             bwratio (float, optional): RBW:VBW ratio. Defaults to None.
             ref (float, optional): Reference level in dBm. Defaults to None.
-            numdiv (float, optional): Number of yscale divisions. Defaults to None.
+            numdiv (float, optional): Number of yscale divisions. Defaults to None. Converted to int by device.
             yscale (float, optional): Scale per division in dB. Defaults to None.
-            atten (float, optional): Mechanical attenuation in dB. Defaults to None.
+            atten (float, optional): Mechanical attenuation in dB. Defaults to None. Converted to int by device.
             spantype (bool, optional): 1 for swept span, 0 for zero span (time domain). Defaults to None.
             rbwtype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
             vbwtype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
@@ -964,7 +1117,11 @@ class SpecAn(FrontEnd):
             rbwfiltershape (int, optional): Index of the combobox widget tied to RBW_FILTER_SHAPE_VAL_ARGS. Defaults to None.
             rbwfiltertype (int, optional): Index of the combobox widget tied to RBW_FILTER_TYPE_VAL_ARGS. Defaults to None.
             attentype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
+            sweeppoints (float, optional): Number of points to sweep. Defaults to None. Converted to int by device.
             tracetype (int, optional): Index of the combobox widget tied to TRACE_TYPE_VAL_ARGS. Defaults to None.
+            avgcount (float, optional): Average/max hold/min hold count. Defaults to None. Converted to int by device.
+            avgtype (int, optional): Index of the combobox widget tied to AVG_TYPE_VAL_ARGS. Defaults to None.
+            avgautoman (bool, optional): 1 for auto, 0 for manual. Defaults to None.
         """
         # TODO: Make sure all commands have full functionality
         global visaLock
@@ -993,8 +1150,13 @@ class SpecAn(FrontEnd):
             RbwFilterType.update(arg=self.RBW_FILTER_TYPE_VAL_ARGS[rbwfiltertype])
         AttenType.update(arg=attentype)
         YAxisUnit.update(arg=None)
+        SweepPoints.update(arg=sweeppoints)
         if tracetype is not None:
             TraceType.update(arg=self.TRACE_TYPE_VAL_ARGS[tracetype])
+        AvgHoldCount.update(arg=avgcount)
+        if avgtype is not None:
+            AvgType.update(arg=self.AVG_TYPE_VAL_ARGS[avgtype])
+        AvgAutoMan.update(arg=avgautoman)
 
         # Sort the list so dictionaries with 'arg': None are placed (and executed) after write commands
         for index in range(len(_list)):
@@ -1023,118 +1185,133 @@ class SpecAn(FrontEnd):
         with specPlotLock:
             self.setAnalyzerPlotLimits()
         return
-    
-    def setState(self, val):
-        """Sets self.loopState to val.
+
+    def initAnalyzer(self):
+        def init():
+            if self.Vi.isSessionOpen() == FALSE:
+                logging.error(f"Session to the analyzer is not open. Set up connection with Options > Configure..., then reinitialize.")
+                return
+            try:
+                visaLock.acquire()
+                self.Vi.resetAnalyzerState()
+                self.Vi.queryPowerUpErrors()
+                self.Vi.testBufferSize()
+                # Set widget values
+                self.setAnalyzerValue()
+                visaLock.release()
+            except Exception as e:
+                logging.error(f'{type(e).__name__}: {e}')
+                try:
+                    self.Vi.queryErrors()
+                except Exception as e:
+                    # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
+                    pass
+                visaLock.release()
+            self.loopStateHandler(toState=state.LOOP)
+        thread = threading.Thread(target=init)
+        thread.start()
+
+    def loopStateHandler(self, toState):
+        """Sets self.loopState to the state passed in `toState` and performs appropriate operations for that state change.
 
         Args:
-            val (int): Should be a constant in class State (state.IDLE, state.INIT, state.LOOP).
+            toState (state): Determines what state to set self.loopState to, can be state.IDLE or state.LOOP
+
+        Raises:
+            ValueError: if `toState` does not match a valid state.
         """
-        self.loopState = val
+        match toState:
+            case state.IDLE:
+                self.idleButton.configure(state='disable')
+                self.loopButton.configure(state='enable')
+                self.toggleInputs(action = DISABLE)
+            case state.LOOP:
+                self.idleButton.configure(state='enable')
+                self.loopButton.configure(state='disable')
+                self.toggleInputs(action = ENABLE)
+                self.setAnalyzerThreadHandler()
+            case _:
+                raise ValueError('loopStateHandler received invalid state')
+        self.loopState = toState
+
+    def osrStateMachine(self):
+        """Sets the state of the icon widgets depending on their value in self.operationStatusRegister
+        """
+        osr = self.operationStatusRegister
+        if osr & 0b00000001:
+            self.calibratingIcon.configure(state='enable')
+        else:
+            self.calibratingIcon.configure(state='disable')
+        if osr & 0b00000010:
+            self.settlingIcon.configure(state='enable')
+        else:
+            self.settlingIcon.configure(state='disable')
+        if osr & 0b00001000:
+            self.sweepingIcon.configure(state='enable')
+        else:
+            self.sweepingIcon.configure(state='disable')
+        if osr & 0b00010000:
+            self.measuringIcon.configure(state='enable')
+        else:
+            self.measuringIcon.configure(state='disable')
 
     def analyzerDisplayLoop(self):
-        """Main spectrum analyzer state machine. Initializes spectrum analyzer connection and plots sweeps in the matplotlib canvas.
+        """Spectrum analyzer display loop. Constantly fetches the spectrum analyzer xy values and plots it in the matplotlib canvas.
         """
-        global visaLock, specPlotLock
-
+        yAxisOld = []
         while TRUE:
             match self.loopState:
                 case state.IDLE:
                     # Prevent this thread from taking up too much utilization
-                    self.toggleInputs(DISABLE)
                     time.sleep(IDLE_DELAY)
-                    continue
-
-                case state.INIT:
-                    # Maintain this loop to prevent fatal error if the connected device is not a spectrum analyzer.
-                    if self.Vi.isSessionOpen() == FALSE:
-                        logging.error(f"Session to the analyzer is not open. Set up connection with Options > Configure..., then reinitialize.")
-                        self.loopState = state.IDLE
-                        continue
-                    try:
-                        visaLock.acquire()
-                        self.Vi.resetAnalyzerState()
-                        self.Vi.queryPowerUpErrors()
-                        self.Vi.testBufferSize()
-                        # Set widget values
-                        self.setAnalyzerValue()
-                        visaLock.release()
-                        self.loopState = state.LOOP
-                    except Exception as e:
-                        logging.error(f'{type(e).__name__}: {e}')
-                        try:
-                            self.Vi.queryErrors()
-                        except Exception as e:
-                            # logging.error(f'{type(e).__name__}: {e}. Could not query errors from device.')
-                            pass
-                        self.toggleInputs(ENABLE)
-                        visaLock.release()
-                        self.loopState = state.IDLE
-
                 case state.LOOP:
-                    # Main analyzer loop
-                    # TODO: variable time.sleep based on analyzer sweep time
-                    if self.Vi.isSessionOpen() == FALSE:
-                        logging.info(f"Lost connection to the analyzer.")
-                        self.loopState = state.IDLE
-                        continue
-                    self.toggleInputs(ENABLE)
-                    if self.contSweepFlag or self.singleSweepFlag:
-                        visaLock.acquire()
-                        try: # Check if the instrument is busy calibrating, settling, sweeping, or measuring 
-                            if self.Vi.getOperationRegister() & 0b00011011:
-                                continue 
-                        except Exception as e:
-                            logging.fatal(f'{type(e).__name__}: {e}')
-                            logging.fatal("Could not retrieve information from Operation Status Register.")
-                            visaLock.release()
-                            self.contSweepFlag = False
+                    try:
+                        if visaLock.acquire(blocking=False) is False:   # This returns true if lock was successfully acquired
+                            self.lockedIcon.configure(state='enable')
+                            time.sleep(ANALYZER_REFRESH_DELAY)
                             continue
-                        try:
-                            with specPlotLock:
+                        else:
+                            visaLock.release()
+                        visaLock.acquire()
+                        # Update the osr and call the state machine
+                        self.operationStatusRegister = self.Vi.getOperationRegister()
+                        self.osrStateMachine()
+                        self.lockedIcon.configure(state='disable')
+                        # :FETCH:SAN? doesn't fetch if a sweep is in progress, this big ole mess is a workaround for that
+                        startFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:START?")[0])
+                        stopFreq = float(self.Vi.openRsrc.query_ascii_values(":SENS:FREQ:STOP?")[0])
+                        sweepPoints = int(self.Vi.openRsrc.query_ascii_values(":SENS:SWEEP:POINTS?")[0])
+                        yAxis = self.Vi.openRsrc.query_ascii_values(":TRACE:DATA? TRACE1")
+                        # currAvgCount = self.Vi.openRsrc.query_ascii_values(":SENS:AVER:COUNT:CURR?")
+                        # clearAndSetWidget(self.currAvgCountEntry, currAvgCount)
+                        buffer = True
+                        visaLock.release()
+                    except Exception as e:
+                        visaLock.release()
+                        logging.error(f'{type(e).__name__}: {e}')
+                        self.loopStateHandler(toState=state.IDLE)
+                        buffer = None
+                    if buffer:
+                        with specPlotLock:
+                            try:
                                 if 'lines' in locals():     # Remove previous plot if it exists
+                                    yAxisOld = self.ax.lines[0].get_data()[1].tolist()   # Save the currently plotted y data
                                     lines.pop(0).remove()
-                                buffer = self.Vi.openRsrc.query_ascii_values(":READ:SAN?")
-                                xAxis = buffer[::2]
-                                yAxis = buffer[1::2]
+                                stepSize = (stopFreq - startFreq) / (sweepPoints - 1)
+                                xAxis = np.zeros(sweepPoints)
+                                xAxis[0] = startFreq
+                                for index in range(sweepPoints - 1):
+                                    xAxis[index + 1] = xAxis[index] + stepSize
                                 lines = self.ax.plot(xAxis, yAxis, color=self.color, marker=self.marker, linestyle=self.linestyle, linewidth=self.linewidth, markersize=self.markersize)
                                 self.ax.grid(visible=True)
                                 self.spectrumDisplay.draw()
-                        except Exception as e:
-                            logging.fatal(f'{type(e).__name__}: {e}')
-                            self.contSweepFlag = False
-                        visaLock.release()
-                        self.singleSweepFlag = False
-                        time.sleep(ANALYZER_LOOP_DELAY)
-                    else:
-                        # Prevent this thread from taking up too much utilization
-                        time.sleep(IDLE_DELAY)
-
-    def toggleAnalyzerDisplay(self):
-        """sets contSweepFlag != contSweepFlag to control analyzerDisplayLoop()
-        """
-        if self.Vi.isSessionOpen() == FALSE:
-            logging.error("Cannot initiate sweep, session to the analyzer is not open.")
-            self.contSweepFlag = False
-            return
-        
-        if not self.contSweepFlag:
-            logging.info("Starting spectrum display.")
-            self.contSweepFlag = True
-        else:
-            logging.info("Disabling spectrum display.")
-            self.contSweepFlag = False
-
-    def singleSweep(self):
-        """Sets singleSweepFlag TRUE and contSweepFlag FALSE to control analyzerDisplayLoop()
-        """
-        if self.Vi.isSessionOpen() == FALSE:
-            logging.error("Cannot initiate sweep, session to the analyzer is not open.")
-            self.contSweepFlag = False
-            return
-        
-        self.contSweepFlag = False
-        self.singleSweepFlag = True
+                            except Exception as e:
+                                logging.fatal(f'{type(e).__name__}: {e}')
+                                pass
+                        if 'yAxisOld' in locals():
+                            if yAxis != yAxisOld:
+                                TimeParameter.update(value=datetime.now(LOCAL_TIMEZONE).isoformat())
+                    time.sleep(ANALYZER_REFRESH_DELAY)
 
     def setPlotThreadHandler(self, color=None, marker=None, linestyle=None, linewidth=None, markersize=None):
         """Generates thread to issue setPlotParam.
@@ -1224,10 +1401,9 @@ class AziElePlot(FrontEnd):
         self.bearingDisplay = FigureCanvasTkAgg(fig, master=self.parent)
         self.bearingDisplay.get_tk_widget().grid(row = 0, column = 0, sticky=NSEW, columnspan=2)
 
-
         # CONTROL FRAME
         self.ctrlFrame = ttk.Frame(self.parent)
-        self.ctrlFrame.grid(row=2, column=0, sticky=NSEW, columnspan=1)
+        self.ctrlFrame.grid(row=1, column=0, sticky=NSEW, columnspan=1)
         for x in range(4):
             self.ctrlFrame.columnconfigure(x, weight=1)
         # FEEDBACK
@@ -1263,6 +1439,40 @@ class AziElePlot(FrontEnd):
         elEntry = tk.Entry(self.elEntryFrame, font=font, background=elArrows.cget('background'), borderwidth=0, validate="key", validatecommand=(isNumWrapper, '%P'))
         elEntry.grid(row=0, column=1, sticky=NSEW)
 
+        # ICON FRAMES
+        self.masterIconFrame = ttk.Frame(self.parent)
+        self.masterIconFrame.place(x=0, y=0, anchor=NW)
+        self.lotoIcon = ttk.Label(self.masterIconFrame, text = 'L', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.lotoIcon.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.lotoIcon, msg='Lockout/Tagout Open', follow=True, delay=0.25)
+        self.lockedIcon = ttk.Label(self.masterIconFrame, text = LOCK_ICON, anchor=CENTER, style='Icon.TLabel', width=2)
+        self.lockedIcon.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.lockedIcon, msg='Resource locked by another thread', follow=True, delay=0.25)
+
+        self.xIconFrame = ttk.Frame(self.parent)
+        self.xIconFrame.place(x=0, y=0, anchor=SW, in_=self.ctrlFrame)
+        self.xDriveEnable = ttk.Label(self.xIconFrame, text = 'E', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.xDriveEnable.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.xDriveEnable, msg='Azimuth Drive Enabled', follow=True, delay=0.25)
+        self.xActive = ttk.Label(self.xIconFrame, text = 'A', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.xActive.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.xActive, msg='Azimuth Jog Active', follow=True, delay=0.25)
+        self.xKamr = ttk.Label(self.xIconFrame, text = 'K', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.xKamr.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.xKamr, msg='Azimuth Kill All Motion Request', follow=True, delay=0.25)
+
+        self.yIconFrame = ttk.Frame(self.parent)
+        self.yIconFrame.place(relx=1, y=0, anchor=SE, in_=self.ctrlFrame)
+        self.yDriveEnable = ttk.Label(self.yIconFrame, text = 'E', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.yDriveEnable.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.yDriveEnable, msg='Elevation Drive Enabled', follow=True, delay=0.25)
+        self.yActive = ttk.Label(self.yIconFrame, text = 'A', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.yActive.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.yActive, msg='Elevation Jog Active', follow=True, delay=0.25)
+        self.yKamr = ttk.Label(self.yIconFrame, text = 'K', anchor=CENTER, style='Icon.TLabel', width=2)
+        self.yKamr.pack(side=LEFT, ipadx=4, ipady=2)
+        ToolTip(self.yKamr, msg='Elevation Kill All Motion Request', follow=True, delay=0.25)
+
         # BIND ENTRY WIDGETS
         azEntry.bind('<Return>', lambda event: self.threadHandler(self.sendMoveCommand, event, value=azEntry.get(), axis='az'))
         elEntry.bind('<Return>', lambda event: self.threadHandler(self.sendMoveCommand, event, value=elEntry.get(), axis='el'))
@@ -1274,6 +1484,23 @@ class AziElePlot(FrontEnd):
         # Generate thread to handle live data plot in background
         motorLoop = threading.Thread(target=self.bearingDisplayLoop, daemon=True)
         motorLoop.start()
+
+    def iconStateMachine(self):
+        _bits = [
+            'BIT8465', 'BIT8497',
+            'BIT792', 'BIT824',
+            'BIT8467', 'BIT8499'
+        ]
+        _icons = [self.xDriveEnable, self.yDriveEnable,
+                  self.xActive, self.yActive,
+                  self.xKamr, self.yKamr
+        ]
+
+        for bit, icon in zip(_bits, _icons):
+            if self.queryBit(bit):
+                icon.configure(state='enable')
+            else:
+                icon.configure(state='disable')
 
     def drawArrow(self, axis, angle):
         """Draws arrow on the matplotlib axis from the origin at the angle specified. Intended for polar plots only.
@@ -1356,7 +1583,7 @@ class AziElePlot(FrontEnd):
         Args:
             action (int): 0 or DISABLE to disable, 1 or ENABLE to enable.
         """
-        _frames = (self.azEntryFrame, self.elEntryFrame)
+        _frames = (self.azEntryFrame, self.elEntryFrame, self.masterIconFrame, self.xIconFrame, self.yIconFrame)
         _widgets = ()
 
         if action == ENABLE:
@@ -1423,8 +1650,10 @@ class AziElePlot(FrontEnd):
                         motorLock.release()
 
                 case state.LOOP:
+                    self.toggleInputs(ENABLE)
                     try:
                         motorLock.acquire()
+                        self.iconStateMachine()
                         # Check bit 516 (In motion) to determine whether or not to allow inputs
                         # TODO: Find out why bit 516 returns 0 even when moving
                         # response = self.Motor.query('PRINT P516').splitlines()
@@ -1490,6 +1719,16 @@ class AziElePlot(FrontEnd):
                 self.axis0 = False
             else:
                 raise NotImplementedError(f'Unexpected response from AXIS1: {drive}')
+            
+    def queryBit(self, bit:str) -> bool:
+        with motorLock:
+            value = self.Motor.query(f'PRINT {bit}')
+            if '1' in value:
+                return True
+            elif '0' in value:
+                return False
+            else:
+                raise NotImplementedError(f'Query \'PRINT {bit}\' returned unexpected response: {value}')
 
 # Thread target to monitor IO connection status
 def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
@@ -1546,8 +1785,11 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
         match PLC.status:
             case opcodes.SLEEP.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
-                    FrontEnd.setStatus(button, background=FrontEnd.DEFAULT_BACKGROUND)
-                FrontEnd.setStatus(FrontEnd.sleepP1Button, background=FrontEnd.SELECT_BACKGROUND)
+                    if button is FrontEnd.sleepP1Button:
+                        background=FrontEnd.SELECT_BACKGROUND
+                    else:
+                        background=FrontEnd.DEFAULT_BACKGROUND
+                    FrontEnd.setStatus(button, background=background)
                 FrontEnd.chainSelect = 'SLEEP'
             case opcodes.P1_INIT.value:
                 FrontEnd.setStatus(FrontEnd.initP1Button, background=FrontEnd.SELECT_BACKGROUND)
@@ -1558,13 +1800,19 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
                 FrontEnd.chainSelect = 'SLEEP'
             case opcodes.DFS_CHAIN1.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
-                    FrontEnd.setStatus(button, background=FrontEnd.DEFAULT_BACKGROUND)
-                FrontEnd.setStatus(FrontEnd.dfs1Button, background=FrontEnd.SELECT_BACKGROUND)
+                    if button is FrontEnd.dfs1Button:
+                        background=FrontEnd.SELECT_BACKGROUND
+                    else:
+                        background=FrontEnd.DEFAULT_BACKGROUND
+                    FrontEnd.setStatus(button, background=background)
                 FrontEnd.chainSelect = 'DFS1'
             case opcodes.EMS_CHAIN1.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
-                    FrontEnd.setStatus(button, background=FrontEnd.DEFAULT_BACKGROUND)
-                FrontEnd.setStatus(FrontEnd.ems1Button, background=FrontEnd.SELECT_BACKGROUND)
+                    if button is FrontEnd.ems1Button:
+                        background=FrontEnd.SELECT_BACKGROUND
+                    else:
+                        background=FrontEnd.DEFAULT_BACKGROUND
+                    FrontEnd.setStatus(button, background=background)
                 FrontEnd.chainSelect = 'EMS1'
                 
         match automation.state:
@@ -1577,7 +1825,9 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
 
 # Root tkinter interface (contains Front_End and standard output console)
 root = ThemedTk(theme=cfg['theme']['ttk'])
-root.title('RF-DFS')
+root.title('New Mexico Spectrum Monitor Control')
+root.option_add('*TButton*takeFocus', 0)
+root.option_add('*TCombobox*takeFocus', 0)
 isNumWrapper = root.register(isNumber)
 
 # Change combobox highlight colors to match entry
@@ -1672,12 +1922,12 @@ def executeHandler(event, arg):
     logging.terminal(f'>>> {arg}')
     try:
         if execBool.get():
-            exec(arg)
+            exec(arg, globals())
         else:
             if printBool.get():
                 logging.terminal(f'{eval(arg)}')
             else:
-                eval(arg)
+                eval(arg, globals())
     except Exception as e:
         logging.terminal(f'{type(e).__name__}: {e}')
 
@@ -1688,7 +1938,7 @@ def redirector(inputStr):           # Redirect print/logging statements to the c
         inputStr (string): String to print/log from sys.stdout.write and sys.stderr.write
     """
     console.config(state=NORMAL)
-    console.insert(INSERT, inputStr)
+    console.insert(END, inputStr)
     console.yview(MOVETO, 1)
     console.config(state=DISABLED)
 
@@ -1709,7 +1959,8 @@ def openSaveDialog(type):
     if type == 'trace':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Comma separated variables', '*.csv'), ('Text File (Tab delimited)', '*.txt'), ('All Files', '*.*')), defaultextension='.csv')
         if file is not None:
-            saveTrace(f=file)
+            thread = threading.Thread(saveTrace, args=(file,))
+            thread.start()
     elif type == 'log':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Text Files', '*.txt'), ('All Files', '*.*')), defaultextension='.txt')
         if file is not None:
@@ -1718,15 +1969,16 @@ def openSaveDialog(type):
     elif type == 'image':
         filename = filedialog.asksaveasfilename(initialdir = os.getcwd(), filetypes=(('JPEG', '*.jpg'), ('PNG', '*.png')), defaultextension='.jpg')
         if filename != '':
-            with specPlotLock:
-                Spec_An.fig.savefig(filename)
+            Spec_An.fig.savefig(filename)
 
-def saveTrace(f=None, filePath=None):
-    """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found.
+def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
+    """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found. This function is blocking and should only be called outside of the main thread.
 
     Args:
         f (file, optional): File object to save to. Defaults to None.
         filePath (string, optional): File path to save to if f is None. Defaults to None.
+        xdata (list, optional): List of x data points to save. If None, get x data points from plot. Defaults to None.
+        ydata (list, optional): List of y data points to save. If None, get y data points from plot. Defaults to None.
 
     Raises:
         AttributeError: If both f and filePath is None
@@ -1744,35 +1996,39 @@ def saveTrace(f=None, filePath=None):
             x += 1
         f = open(fileJoined, 'w')
 
-    with specPlotLock:
-        data = Spec_An.ax.lines[0].get_data()
-        xdata = data[0]
-        ydata = data[1]
+    try:
         buffer = ''
-    if '.txt' in f.name:
-        delimiter = '\t'
-    else:
-        delimiter = ','
-
-    for parameter in Parameter.instances:
-        if parameter.log == False:
-            continue
-        if isinstance(parameter.value, (list,)):
-            try:
-                value = parameter.value[0].strip("[]{}()#* \n\t")
-            except:
-                value = str(parameter.value).strip("[]{}()#* \n\t")
+        if xdata is None and ydata is None:
+            with specPlotLock:
+                data = Spec_An.ax.lines[0].get_data()
+                xdata = data[0]
+                ydata = data[1]
+        if '.txt' in f.name:
+            delimiter = '\t'
         else:
-            value = str(parameter.value).strip("[]{}()#* \n\t")
+            delimiter = ','
 
-        buffer = buffer + parameter.name + delimiter + value + '\n'
+        for parameter in Parameter.instances:
+            if parameter.log == False:
+                continue
+            if isinstance(parameter.value, (list,)):
+                try:
+                    value = parameter.value[0].strip("[]{}()#* \n\t")
+                except:
+                    value = str(parameter.value).strip("[]{}()#* \n\t")
+            else:
+                value = str(parameter.value).strip("[]{}()#* \n\t")
 
-    buffer = buffer + 'DATA\n'
-    for index in range(len(data[0])):
-        buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
+            buffer = buffer + parameter.name + delimiter + value + '\n'
 
-    f.write(buffer)
-    f.close()
+        buffer = buffer + 'DATA\n'
+        for index in range(len(xdata)):
+            buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
+        f.write(buffer)
+        f.close()
+    except Exception as e:
+        logging.error(f'{type(e).__name__}: {e}')
+        f.close()
 
 def generateConfigDialog():
     """Opens confirmation message if the user wants to generate a new config file.
@@ -1784,6 +2040,12 @@ def generateConfigDialog():
         ):
         defaultconfig.generateConfig()
 
+def initSchedule():
+    pass
+
+def onSchedule():
+    pass
+
 def generateAutoDialog():
     """Opens a dialog that allows the user to modify the automation queue and file path.
     """
@@ -1793,100 +2055,509 @@ def generateAutoDialog():
         logging.info('Cannot edit queue while task scheduler is active.')
         return
 
-    def addDateTime():
-        removeDateTime()
-
+    def _addDateTime():
         _startDate = startDatePicker.get_date()
         _endDate = endDatePicker.get_date()
 
-        _timePicker = timePicker.time()
-        _timeString = f'{_timePicker[0]}:{_timePicker[1]} {_timePicker[2]}'
-        _time = datetime.strptime(_timeString, '%I:%M %p')
+        _startTimePicker = startTimePicker.time()
+        _startTimeString = f'{_startTimePicker[0]}:{_startTimePicker[1]} {_startTimePicker[2]}'
+        _startTime = datetime.strptime(_startTimeString, '%I:%M %p').time()
+        _startDateTime = datetime.combine(_startDate, _startTime)
 
-        _delta = _endDate - _startDate
-        for i in range(_delta.days + 1):
-            _date = datetime.combine(_startDate + dt.timedelta(days=i), _time.time())
-            with autoQueueLock:
-                automation.queue.append(_date)
+        _endTimePicker = endTimePicker.time()
+        _endTimeString = f'{_endTimePicker[0]}:{_endTimePicker[1]} {_endTimePicker[2]}'
+        _endTime = datetime.strptime(_endTimeString, '%I:%M %p').time()
+        _endDateTime = datetime.combine(_endDate, _endTime)
+
+        _intervalPicker = list(intervalPicker.time())
+        if _intervalPicker[0] == 0 and _intervalPicker[1] == 0: # workaround for tktimepicker not allowing 24 hours and 0 minutes
+            _intervalPicker[0] = 24
+        _intervalDelta = timedelta(hours=_intervalPicker[0], minutes=_intervalPicker[1])
+
+        _indexDateTime = _startDateTime + _intervalDelta
+        while _indexDateTime <= _endDateTime:
+            automation.queue.append(_indexDateTime)
+            automation.queue.sort()
+            _indexDateTime = _indexDateTime + _intervalDelta
         _listVar.set(automation.queue)
 
         for i in range(0,len(automation.queue),2):
             queueListbox.itemconfigure(i, background='#f0f0ff')
     
-    def removeDateTime():
-        with autoQueueLock:
-            automation.queue.clear()
-            _listVar.set(automation.queue)
+    def _removeDateTime():
+        automation.queue.clear()
+        _listVar.set(automation.queue)
 
-    def pickFilePath():
-        dir = filedialog.askdirectory()
+    def _presetButtonHandler(string):
+        saveButton.configure(state=NORMAL)
+        clearAndSetWidget(textBox, string)
+
+    def _lastSavedButtonHandler():
+        clearAndSetWidget(textBox, automation.textBoxString)
+        saveButton.configure(state=DISABLED)
+
+    def _saveButtonStateHandler(event):
+        saveButton.configure(state=NORMAL)
+    
+    def _saveAutomationFunctions(string):
+        automation.textBoxString = string
+        exec(string, globals())
+        saveButton.configure(state=DISABLED)
+
+    def _onTab(event:tk.Event) -> str:
+        textBox.insert("insert", " "*4)
+        return "break"
+    
+    def _pickFilePath(entry):
+        dir = filedialog.askdirectory(parent = _parent)
         if dir is None:
             return
-        with autoQueueLock:
-            automation.filePath = dir
-        clearAndSetWidget(pathEntry, dir)
+        automation.filePath = dir
+        clearAndSetWidget(entry, dir)
 
+    def _triggerButtonHandler():
+        automation.isCronTrigger = _tkTriggerVar.get()
+        if automation.isCronTrigger:
+            disableChildren(endDateFrame)
+            addButton.configure(state='disable')
+            removeButton.configure(state='disable')
+            _removeDateTime()
+        else:
+            enableChildren(endDateFrame)
+            addButton.configure(state='enable')
+            removeButton.configure(state='enable')
+
+    def _cronParamHandler():
+        # Get datetime from start picker
+        _startDate = startDatePicker.get_date()
+        _startTimePicker = startTimePicker.time()
+        _startTimeString = f'{_startTimePicker[0]}:{_startTimePicker[1]} {_startTimePicker[2]}'
+        _startTime = datetime.strptime(_startTimeString, '%I:%M %p').time()
+        _startDateTime = datetime.combine(_startDate, _startTime)
+        # Get interval from interval picker
+        _intervalPicker = list(intervalPicker.time())
+        if _intervalPicker[0] == 0 and _intervalPicker[1] == 0: # workaround for tktimepicker not allowing 24 hours and 0 minutes
+            _intervalPicker[0] = 24
+
+        automation.cronStartDatetime = _startDateTime
+        automation.cronInterval = _intervalPicker
+        _parent.destroy()
+
+    # Toplevel and notebook
     _parent = Toplevel()
     _parent.title('Auto-Sweep Configuration')
-    _parent.resizable(False, False)
-    pathFrame = tk.Frame(_parent)
-    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, columnspan=2, sticky=NSEW)
+    _parent.resizable(True, True)
+    _parent.attributes('-topmost', True)
+    _parent.protocol("WM_DELETE_WINDOW", _cronParamHandler)
+    _parent.rowconfigure(0, weight=1)
+    _parent.columnconfigure(0, weight=1)
+    _notebook = ttk.Notebook(_parent)
+    _notebook.grid(row=0, column=0, sticky=NSEW)
+    _frame1 = ttk.Frame(_notebook)
+    _frame1.rowconfigure(0, weight=1)
+    _frame1.columnconfigure(1, weight=1)
+    _frame2 = ttk.Frame(_notebook)
+    _frame2.rowconfigure(0, weight=1)
+    _frame2.columnconfigure(0, weight=0)
+    _frame2.columnconfigure(1, weight=1)
+    _notebook.add(_frame1, text='Config', sticky=NSEW)
+    _notebook.add(_frame2, text='Scripting')
+    _time = datetime.now(LOCAL_TIMEZONE)
+    _period = constants.AM
+    _hour = int(_time.strftime('%I'))
+    _minute = int(_time.strftime('%M'))
+    if _time.strftime('%p') == 'PM':
+        _period = constants.PM
+    _tkTriggerVar = BooleanVar(value=automation.isCronTrigger)
+    # Tab 1 (Config)
+    configWidgetsFrame = ttk.Frame(_frame1, width=30)
+    configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    pathFrame = ttk.Frame(configWidgetsFrame)
+    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
     pathFrame.columnconfigure(0, weight=0)
-    pathFrame.columnconfigure(1, weight=1)
-    pathLabel = tk.Label(pathFrame, text='File Path')
+    pathFrame.columnconfigure(1, weight=0)
+    pathLabel = ttk.Label(pathFrame, text='File Path')
     pathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    pathEntry = ttk.Entry(pathFrame, width=50, state='disabled')
+    pathEntry = ttk.Entry(pathFrame, width=65, state='disabled')
     pathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     clearAndSetWidget(pathEntry, automation.filePath)
-    pathPicker = ttk.Button(pathFrame, text='Browse...', command=pickFilePath)
+    pathPicker = ttk.Button(pathFrame, text='Browse...', command = lambda: _pickFilePath(pathEntry))
     pathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
-    dateFrame = tk.Frame(_parent)
-    dateFrame.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, columnspan=2, sticky=NSEW)
-    dateFrame.columnconfigure(0, weight=0)
-    dateFrame.columnconfigure(1, weight=1)
-    startLabel = tk.Label(dateFrame, text='Start Date')
+    cronTriggerButton = ttk.Radiobutton(pathFrame, text='CronTrigger', variable=_tkTriggerVar, value=True, takefocus=False, command=_triggerButtonHandler)
+    cronTriggerButton.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NS)
+    dateTriggerButton = ttk.Radiobutton(pathFrame, text='DateTrigger', variable=_tkTriggerVar, value=False, takefocus=False, command=_triggerButtonHandler)
+    dateTriggerButton.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NS)
+    sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    startDateFrame = ttk.Frame(configWidgetsFrame)
+    startDateFrame.grid(row=2, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX)
+    startDateFrame.columnconfigure(0, weight=0)
+    startDateFrame.columnconfigure(1, weight=1)
+    startLabel = ttk.Label(startDateFrame, text='Start Date & Time')
     startLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    startDatePicker = DateEntry(dateFrame)
+    startDatePicker = DateEntry(startDateFrame)
     startDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    endLabel = tk.Label(dateFrame, text='End Date')
-    endLabel.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
-    endDatePicker = DateEntry(dateFrame)
-    endDatePicker.grid(row=1, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
-    timePicker = SpinTimePickerModern(_parent)
-    timePicker.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
-    timePicker.addAll(constants.HOURS12)
-    addButton = ttk.Button(_parent, text="Generate", command=addDateTime)
-    addButton.grid(row=3, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
-    removeButton = ttk.Button(_parent, text="Clear", command=removeDateTime)
-    removeButton.grid(row=3, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    startTimePicker = SpinTimePickerModern(startDateFrame, period=_period)
+    startTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
+    startTimePicker.addAll(constants.HOURS12)
+    startTimePicker.set12Hrs(_hour)
+    startTimePicker.setMins(_minute)
+    sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    endDateFrame = ttk.Frame(configWidgetsFrame)
+    endDateFrame.grid(row=4, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX)
+    endDateFrame.columnconfigure(0, weight=0)
+    endDateFrame.columnconfigure(1, weight=1)
+    endLabel = ttk.Label(endDateFrame, text='End Date & Time')
+    endLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    endDatePicker = DateEntry(endDateFrame)
+    endDatePicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    endTimePicker = SpinTimePickerModern(endDateFrame, period=constants.PM)
+    endTimePicker.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW, columnspan=2)
+    endTimePicker.addAll(constants.HOURS12)
+    endTimePicker.set12Hrs(11)
+    endTimePicker.setMins(59)
+    sep3 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep3.grid(row=5, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalFrame = ttk.Frame(configWidgetsFrame)
+    intervalFrame.grid(row=6, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalFrame.columnconfigure(0, weight=1)
+    intervalFrame.columnconfigure(1, weight=1)
+    intervalLabel = ttk.Label(intervalFrame, text='Set Interval')
+    intervalLabel.grid(row=0, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker = SpinTimePickerModern(intervalFrame)
+    intervalPicker.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker.addAll(constants.HOURS24)
+    intervalPicker.set24Hrs(automation.cronInterval[0])
+    intervalPicker.setMins(automation.cronInterval[1])
 
-    queueListbox = tk.Listbox(_parent, listvariable=_listVar, width=35)
-    queueListbox.grid(row=0, column=2, rowspan=4, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    addButton = ttk.Button(configWidgetsFrame, text="Generate", command=_addDateTime)
+    addButton.grid(row=7, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
+    removeButton = ttk.Button(configWidgetsFrame, text="Clear", command=_removeDateTime)
+    removeButton.grid(row=7, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX)
+
+    queueListbox = tk.Listbox(_frame1, listvariable=_listVar)
+    queueListbox.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    queueScroll = ttk.Scrollbar(_frame1, orient=VERTICAL, command=queueListbox.yview)
+    queueListbox.configure(yscrollcommand=queueScroll.set)
+    queueScroll.grid(row=0, column=2, sticky=NSEW)
+
+    _triggerButtonHandler()
 
     for i in range(0,len(automation.queue),2):
         queueListbox.itemconfigure(i, background='#f0f0ff')
+
+    # Tab 2 (Scripting)
+    presetsFrame = ttk.LabelFrame(_frame2, text='Presets')
+    presetsFrame.grid(row=0, column=0, sticky=NSEW)
+    textBox = tk.Text(_frame2, width=120)
+    textBox.grid(row=0, column=1, sticky=NSEW)
+    textBox.bind("<Tab>", _onTab)
+    clearAndSetWidget(textBox, automation.textBoxString)
+    button1 = ttk.Button(presetsFrame, text='Default', command=lambda: _presetButtonHandler(automation.presets.default))
+    button1.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
+    button2 = ttk.Button(presetsFrame, text='Clear/Write', command=lambda: _presetButtonHandler(automation.presets.clearwrite))
+    button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
+    button3 = ttk.Button(presetsFrame, text='Average', command=lambda: _presetButtonHandler(automation.presets.average))
+    button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
+    button4 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: _presetButtonHandler(automation.presets.maxhold))
+    button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
+    button5 = ttk.Button(presetsFrame, text='Min Hold', command=lambda: _presetButtonHandler(automation.presets.minhold))
+    button5.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
+
+    for i in range(7):
+        presetsFrame.rowconfigure(i, weight=0)
+    presetsFrame.rowconfigure(5, weight=1)
+    emptySpace = ttk.Frame(presetsFrame)
+    emptySpace.grid(row=5, column=0, sticky=NSEW)
+    lastSavedButton = ttk.Button(presetsFrame, text='Load Last Saved', command=lambda: _lastSavedButtonHandler())
+    lastSavedButton.grid(row=6, column=0, sticky=NSEW, padx=5, pady=5)
+    saveButton = ttk.Button(presetsFrame, text='Save Changes', command=lambda: _saveAutomationFunctions(textBox.get(1.0, "end-1c")), state=DISABLED)
+    saveButton.grid(row=7, column=0, sticky=NSEW, padx=5, pady=5)
+    textBox.bind('<KeyRelease>', _saveButtonStateHandler)
 
 def autoStartStop():
     """If the automation scheduler is active, pauses it and removes all jobs. If it is paused, add all jobs in automation.queue and resume.
     """
     match automation.state:
         case state.IDLE:
-            if automation.queue == []:
-                logging.error('Automation queue is empty')
-                return
-            # if the scheduler isn't paused when adding more than 2 jobs it breaks most of the time
-            # changing trigger from date to interval fixes it?
-            # also commenting out the sys.stdout/err redirectors fixes it and i have no idea why
-            for taskDateTime in automation.queue:
-                automation.scheduler.add_job(saveTrace, args=(None, automation.filePath), trigger='date', run_date = taskDateTime)
-            automation.scheduler.resume()
-            automation.state = state.AUTO
+            if automation.isCronTrigger and automation.cronStartDatetime is not None:    # Cron style job scheduling
+                thread = threading.Thread(target=initSchedule, daemon=True)
+                thread.start()
+                if automation.cronInterval[0] == 0:
+                    _hour = None
+                else:
+                    _hour = f'*/{automation.cronInterval[0]}'
+                if automation.cronInterval[0] == 24:
+                    _day = f'*/1'
+                else:
+                    _day = None
+                if automation.cronInterval[1] == 0:
+                    _minute = None
+                else:
+                    _minute = f'*/{automation.cronInterval[1]}'
+                _cronTrigger = CronTrigger(start_date = automation.cronStartDatetime, day = _day, hour = _hour, minute = _minute)
+                automation.scheduler.add_job(onSchedule, trigger=_cronTrigger)
+                automation.scheduler.resume()
+                automation.state = state.AUTO
+            else:                           # Datetime style job scheduling from automation.queue
+                if automation.queue == []:
+                    logging.error('Automation queue is empty')
+                    return
+                thread = threading.Thread(target=initSchedule, daemon=True)
+                thread.start()
+                # if the scheduler isn't paused when adding more than 2 jobs it breaks most of the time
+                # changing trigger from date to interval fixes it?
+                # also commenting out the sys.stdout/err redirectors fixes it and i have no idea why
+                for taskDateTime in automation.queue:
+                    automation.scheduler.add_job(onSchedule, trigger='date', run_date = taskDateTime)
+                automation.scheduler.resume()
+                automation.state = state.AUTO
         case state.AUTO:
             automation.scheduler.pause()
+            # Remove jobs past execution from the queue
+            for _dt in automation.queue[:]:
+                if _dt < datetime.now():
+                    automation.queue.remove(_dt)
+            # Clear the scheduler job store
             for job in automation.scheduler.get_jobs():
                 job.remove()
 
             automation.state = state.IDLE
+
+def generateDriftDialog():
+    global DEF_DRIFT_TO_PATH
+    # If the DRIFT directory has already been created, update DEF_DRIFT_TO_PATH with that value 
+    if DEF_DRIFT_FROM_PATH == DEF_DRIFT_TO_PATH:
+        _toPath = os.path.join(DEF_DRIFT_FROM_PATH, 'DRIFT')
+        if os.path.isdir(_toPath):
+            DEF_DRIFT_TO_PATH = _toPath
+
+    def _scheduleDrift(now=False):
+        global DEF_DRIFT_FROM_PATH, DEF_DRIFT_TO_PATH
+        _fromPath = fromPathEntry.get()
+        _toPath = toPathEntry.get()
+        DEF_DRIFT_FROM_PATH = _fromPath
+        DEF_DRIFT_TO_PATH = _toPath
+        args = (_fromPath, _toPath)
+        if now:
+            thread = threading.Thread(target=toDriftFormat, args=args, daemon=True)
+            thread.start()
+            return
+        _jobTimePicker = intervalPicker.time()
+        _jobTimeString = f'{_jobTimePicker[0]}:{_jobTimePicker[1]} {_jobTimePicker[2]}'
+        _jobTime = datetime.strptime(_jobTimeString, '%I:%M %p').time()
+        # Check if job is active
+        _clearScheduler()
+        # Add scheduled cron job
+        dwfScheduler.add_job(toDriftFormat, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=DRIFT_JOB_ID, name='Convert to DRIFT Format')
+
+    def _clearScheduler():
+        if dwfScheduler.get_job(DRIFT_JOB_ID):
+            dwfScheduler.remove_job(DRIFT_JOB_ID)
+
+    def _pickFilePath(entry):
+        dir = filedialog.askdirectory(parent = _parent)
+        if not dir:
+            return
+        clearAndSetWidget(entry, dir)
+
+    def _makeDriftDir():
+        driftdir = os.path.join(fromPathEntry.get(), 'DRIFT')
+        clearAndSetWidget(toPathEntry, driftdir)
+
+    _parent = Toplevel()
+    _parent.title('DRIFT Processing')
+    _parent.resizable(True, True)
+    _parent.attributes('-topmost', True)
+    configWidgetsFrame = ttk.Frame(_parent, width=30)
+    configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    pathFrame = ttk.Frame(configWidgetsFrame)
+    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    pathFrame.columnconfigure(0, weight=0)
+    pathFrame.columnconfigure(1, weight=1)
+    fromPathLabel = ttk.Label(pathFrame, text='Trace Directory:')
+    fromPathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    fromPathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
+    fromPathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(fromPathEntry, DEF_DRIFT_FROM_PATH)
+    fromPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(fromPathEntry))
+    fromPathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    toPathLabel = ttk.Label(pathFrame, text='DRIFT Destination Directory:')
+    toPathLabel.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    toPathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
+    toPathEntry.grid(row=3, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(toPathEntry, DEF_DRIFT_TO_PATH)
+    toPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(toPathEntry))
+    toPathPicker.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    makeDirButton = ttk.Button(pathFrame, text="Make DRIFT Directory in Current Trace Directory", command=_makeDriftDir)
+    makeDirButton.grid(row=4, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    paramsFrame = ttk.Frame(configWidgetsFrame)
+    paramsFrame.grid(row = 2, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    paramsFrame.columnconfigure(0, weight=1)
+    paramsFrame.columnconfigure(1, weight=1)
+    intLabel = ttk.Label(paramsFrame, text='Run every day at:')
+    intLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    intervalPicker = SpinTimePickerModern(paramsFrame, period=constants.AM)
+    intervalPicker.grid(row=0, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker.addAll(constants.HOURS12)
+    intervalPicker.set12Hrs(1)
+    intervalPicker.setMins(10)
+    sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    buttonFrame = ttk.Frame(configWidgetsFrame)
+    buttonFrame.grid(row = 4, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    buttonFrame.columnconfigure(0, weight=1)
+    buttonFrame.columnconfigure(1, weight=1)
+    scheduleButton = ttk.Button(buttonFrame, text="Schedule Job", command=_scheduleDrift)
+    scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
+    clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleDrift(now=True))
+    nowButton.grid(row=1, column=1, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+
+def generateWaterfallDialog():
+    _fileTypes = ('.png', '.jpg', '.pdf', '.svg')
+
+    def _scheduleWaterfall(now=False, regenerate=False):
+        global DEF_WF_FROM_PATH, DEF_WF_TO_PATH, DEF_WF_THRESHOLD, DEF_WF_TZ, DEF_WF_FILETYPE, DEF_WF_DPI
+        _fromPath = fromPathEntry.get()
+        _toPath = toPathEntry.get()
+        _threshold = int(thEntry.get())
+        _timezone = tzCombo.get()
+        _filetype = ftCombo.get()
+        _dpi = int(dpiEntry.get())
+        args = (_fromPath, _toPath, _threshold, _timezone, _filetype, _dpi)
+        DEF_WF_FROM_PATH = _fromPath
+        DEF_WF_TO_PATH = _toPath
+        DEF_WF_THRESHOLD = _threshold
+        DEF_WF_TZ = _timezone
+        DEF_WF_FILETYPE = _filetype
+        DEF_WF_DPI = _dpi
+        if now:
+            if regenerate:
+                thread = threading.Thread(target=regenerateWaterfalls, args=args, daemon=True)
+                thread.start()
+            else:
+                thread = threading.Thread(target=makeWaterfalls, args=args, daemon=True)
+                thread.start()
+            return
+        _jobTimePicker = intervalPicker.time()
+        _jobTimeString = f'{_jobTimePicker[0]}:{_jobTimePicker[1]} {_jobTimePicker[2]}'
+        _jobTime = datetime.strptime(_jobTimeString, '%I:%M %p').time()
+        # Check if job is active
+        _clearScheduler()
+        # Add scheduled cron job
+        dwfScheduler.add_job(makeWaterfalls, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=WATERFALL_JOB_ID, name='Generate Waterfall Plot')
+
+    def _clearScheduler():
+        if dwfScheduler.get_job(WATERFALL_JOB_ID):
+            dwfScheduler.remove_job(WATERFALL_JOB_ID)
+
+    def _pickFilePath(entry):
+        dir = filedialog.askdirectory(parent = _parent)
+        if not dir:
+            return
+        clearAndSetWidget(entry, dir)
+
+    _parent = Toplevel()
+    _parent.title('Waterfall Plot Utility')
+    _parent.resizable(True, True)
+    _parent.attributes('-topmost', True)
+    configWidgetsFrame = ttk.Frame(_parent, width=30)
+    configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    pathFrame = ttk.Frame(configWidgetsFrame)
+    pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    pathFrame.columnconfigure(0, weight=0)
+    pathFrame.columnconfigure(1, weight=1)
+    fromPathLabel = ttk.Label(pathFrame, text='Trace Directory:')
+    fromPathLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    fromPathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
+    fromPathEntry.grid(row=1, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(fromPathEntry, DEF_WF_FROM_PATH)
+    fromPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(fromPathEntry))
+    fromPathPicker.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    toPathLabel = ttk.Label(pathFrame, text='Destination Directory:')
+    toPathLabel.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    toPathEntry = ttk.Entry(pathFrame, width=80, state='disabled')
+    toPathEntry.grid(row=3, column=0, columnspan=2, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(toPathEntry, DEF_WF_TO_PATH)
+    toPathPicker = ttk.Button(pathFrame, text='Browse...', command=lambda: _pickFilePath(toPathEntry))
+    toPathPicker.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=E)
+    sep1 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep1.grid(row=1, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    paramsFrame = ttk.Frame(configWidgetsFrame)
+    paramsFrame.grid(row = 2, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    paramsFrame.columnconfigure(0, weight=1)
+    paramsFrame.columnconfigure(1, weight=1)
+    tzLabel = ttk.Label(paramsFrame, text='Timezone:')
+    tzLabel.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    tzCombo = ttk.Combobox(paramsFrame, values=pytz.common_timezones, state='readonly')
+    tzCombo.grid(row=0, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(tzCombo, DEF_WF_TZ)
+    thLabel = ttk.Label(paramsFrame, text='Threshold:')
+    thLabel.grid(row=1, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    thEntry = ttk.Entry(paramsFrame, validate='key', validatecommand=(isNumWrapper, '%P'))
+    thEntry.grid(row=1, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(thEntry, DEF_WF_THRESHOLD)
+    ftLabel = ttk.Label(paramsFrame, text='File Type:')
+    ftLabel.grid(row=2, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    ftCombo = ttk.Combobox(paramsFrame, values=_fileTypes, state='readonly')
+    ftCombo.grid(row=2, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(ftCombo, DEF_WF_FILETYPE)
+    dpiLabel = ttk.Label(paramsFrame, text='DPI:')
+    dpiLabel.grid(row=3, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    dpiEntry = ttk.Entry(paramsFrame, validate='key', validatecommand=(isNumWrapper, '%P'))
+    dpiEntry.grid(row=3, column=1, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
+    clearAndSetWidget(dpiEntry, DEF_WF_DPI)
+    intLabel = ttk.Label(paramsFrame, text='Run every day at:')
+    intLabel.grid(row=4, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=W)
+    intervalPicker = SpinTimePickerModern(paramsFrame, period=constants.AM)
+    intervalPicker.grid(row=4, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    intervalPicker.addAll(constants.HOURS12)
+    intervalPicker.set12Hrs(1)
+    intervalPicker.setMins(0)
+    sep2 = ttk.Separator(configWidgetsFrame, orient=HORIZONTAL)
+    sep2.grid(row=3, column=0, columnspan=2, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    buttonFrame = ttk.Frame(configWidgetsFrame)
+    buttonFrame.grid(row = 4, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
+    buttonFrame.columnconfigure(0, weight=1)
+    buttonFrame.columnconfigure(1, weight=1)
+    scheduleButton = ttk.Button(buttonFrame, text="Schedule Job", command=_scheduleWaterfall)
+    scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
+    clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    regenerateButton = ttk.Button(buttonFrame, text="Regenerate", command=lambda: _scheduleWaterfall(now=True, regenerate=True))
+    regenerateButton.grid(row=1, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleWaterfall(now=True))
+    nowButton.grid(row=1, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+
+def openTrace():
+    filepath = filedialog.askopenfilename(title="Select a file", filetypes=(('Comma separated variables', '*.csv'),))
+    if filepath:
+        df = pd.read_csv(filepath, header=None)
+        trace = Trace(df, os.path.basename(filepath))
+        x = trace.data.loc[:, 0].astype(float)
+        y = trace.data.loc[:, 1].astype(float)
+        try:
+            _dt = datetime.fromisoformat(trace.header.loc['Time'].item()).astimezone(LOCAL_TIMEZONE)
+            _time = _dt.strftime("%H:%M:%S") + f' ({LOCAL_TIMEZONE})'
+        except:
+            _time = trace.header.loc['Time'].item()
+        plt.ion()
+        fig, ax = plt.subplots()
+        ax.plot(x, y)
+        ax.set_xlabel(f'Frequency ({trace.header.loc['X Axis Units'].item()})')
+        ax.set_ylabel(f'Power ({trace.header.loc['Y Axis Units'].item()})')
+        ax.grid(visible=True)
+        ax.margins(x=0)
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.xaxis.set_major_formatter(EngFormatter(unit='Hz'))
+        ax.set_title(f'{os.path.basename(filepath)}\n{_time}')
+        fig.canvas.draw()
 
 evalCheckbutton.configure(command=checkbuttonStateHandler)
 execCheckbutton.configure(command=checkbuttonStateHandler)
@@ -1916,9 +2587,12 @@ Front_End = FrontEnd(root, Vi, Motor, Relay)
 Spec_An = SpecAn(Vi, Front_End.spectrumFrame)
 Azi_Ele = AziElePlot(Motor, Front_End.directionFrame)
 
+# Threading stuff
 statusMonitorThread = threading.Thread(target=statusMonitor, args = (Front_End, Vi, Motor, Relay, Azi_Ele), daemon=True)
 statusMonitorThread.start()
 automation.scheduler.start(paused=True)
+dwfScheduler.start()
+Spec_An.analyzerDisplayLoopthread.start()
 
 # Bind FrontEnd buttons to methods
 Front_End.standbyButton.configure(command = lambda: Azi_Ele.setState(state.IDLE))
@@ -1934,12 +2608,17 @@ menubar = Menu(root)
 root['menu'] = menubar
 menuFile = Menu(menubar)
 menuOptions = Menu(menubar)
+menuRun = Menu(menubar)
 menuHelp = Menu(menubar)
 menubar.add_cascade(menu=menuFile, label='File')
 menubar.add_cascade(menu=menuOptions, label='Options')
+menubar.add_cascade(menu=menuRun, label='Run')
 menubar.add_cascade(menu=menuHelp, label='Help')
 
 # File
+menuFile.add_command(label='Open trace', command = lambda: openTrace())
+menuFile.add_command(label='Quicksave trace', command = lambda: threadHandler(saveTrace, kwargs={'filePath': os.getcwd()}))
+menuFile.add_separator()
 menuFile.add_command(label='Save trace', command = lambda: openSaveDialog(type='trace'))
 menuFile.add_command(label='Save log', command = lambda: openSaveDialog(type='log'))
 menuFile.add_command(label='Save image', command = lambda: openSaveDialog(type='image'))
@@ -1957,6 +2636,10 @@ menuOptions.add_separator()
 menuOptions.add_radiobutton(label='Logging: Standard', variable = tkLoggingLevel, command = lambda: loggingLevelHandler(tkLoggingLevel.get()), value = 1)
 menuOptions.add_radiobutton(label='Logging: Verbose', variable = tkLoggingLevel, command = lambda: loggingLevelHandler(tkLoggingLevel.get()), value = 2)
 menuOptions.add_radiobutton(label='Logging: Debug', variable = tkLoggingLevel, command = lambda: loggingLevelHandler(tkLoggingLevel.get()), value = 3)
+
+# Run
+menuRun.add_command(label='DRIFT Processing', command = generateDriftDialog)
+menuRun.add_command(label='Waterfall Plot Utility', command=generateWaterfallDialog)
 
 # Help
 menuHelp.add_command(label='Open wiki...', command=Front_End.openHelp)

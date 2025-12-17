@@ -15,9 +15,9 @@ from pathlib import Path
 
 config = """
 [automation]
-thread_max_workers = 20
+thread_max_workers = 1
 coalesce = true
-job_max_instances = 5
+job_max_instances = 1
 
 [calibration]
 # Encoder home is the encoder position when the dish is parked (azimuth at true north, elevation straight up).
@@ -32,6 +32,7 @@ ttk = "clearlooks"
 select_background = "#00ff00"
 clock_font = ['Arial', 15]
 terminal_font = ['Courier', 11]
+icon_font = ['MS Serif', 12]
 font = ['Arial', 12]
 """
 

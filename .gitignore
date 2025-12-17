@@ -1,5 +1,7 @@
 # Codebase specific ignores
 config.toml
+DRIFT
+*-WATERFALL
 
 # KiCad
 *.000
