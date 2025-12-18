@@ -396,8 +396,8 @@ class FrontEnd():
         self.killP1Button.grid(row=0, column=1, sticky=NSEW, padx=BUTTON_PADX, pady=BUTTON_PADY)
         self.sleepP1Button = tk.Button(chainFrame, font=FONT, text='SLEEP', command=lambda:self.PLC.threadHandler(self.PLC.query, (opcodes.SLEEP.value,)))
         self.sleepP1Button.grid(row=1, column=0, sticky=NSEW, padx=BUTTON_PADX, pady=BUTTON_PADY)
-        self.returnP1Button = tk.Button(chainFrame, font=FONT, text='RETURN', command=lambda:self.PLC.threadHandler(self.PLC.query, (opcodes.RETURN_OPCODES.value,)))
-        self.returnP1Button.grid(row=1, column=1, sticky=NSEW, padx=BUTTON_PADX, pady=BUTTON_PADY)
+        self.wlightButton = tk.Button(chainFrame, font=FONT, text='LIGHT', command=lambda:self.PLC.threadHandler(self.PLC.query, (opcodes.WLIGHT_TOGGLE.value,)))
+        self.wlightButton.grid(row=1, column=1, sticky=NSEW, padx=BUTTON_PADX, pady=BUTTON_PADY)
         self.dfs1Button = tk.Button(chainFrame, font=FONT, text='DFS1', command=lambda:self.PLC.threadHandler(self.PLC.query, (opcodes.DFS_CHAIN1.value,)))
         self.dfs1Button.grid(row=2, column=0, sticky=NSEW, padx=BUTTON_PADX, pady=BUTTON_PADY)
         self.ems1Button = tk.Button(chainFrame, font=FONT, text='EMS1', command=lambda:self.PLC.threadHandler(self.PLC.query, (opcodes.EMS_CHAIN1.value,)))
@@ -1782,7 +1782,11 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
             FrontEnd.setStatus(FrontEnd.plcStatus, text='Connected')
         else: 
             FrontEnd.setStatus(FrontEnd.plcStatus, text='NC')
-        match PLC.status:
+        if PLC.status & opcodes.WLIGHT_ON.value:
+            FrontEnd.setStatus(FrontEnd.wlightButton, background=FrontEnd.SELECT_BACKGROUND)
+        else:
+            FrontEnd.setStatus(FrontEnd.wlightButton, background=FrontEnd.DEFAULT_BACKGROUND)
+        match PLC.status & opcodes.WLIGHT_CLR.value:
             case opcodes.SLEEP.value:
                 for button in FrontEnd.PLC_OUTPUTS_LIST:
                     if button is FrontEnd.sleepP1Button:
