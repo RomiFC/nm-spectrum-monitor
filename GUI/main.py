@@ -510,7 +510,7 @@ class FrontEnd():
             """Update the values in the SCPI instrument selection box
             """
             logging.info('Searching for resources...')
-            self.instrSelectBox['values'] = self.Vi.rm.list_resources()
+            self.instrSelectBox['values'] = self.Vi.rm.list_resources(query='?*')
             self.motorSelectBox['values'] = list(serial.tools.list_ports.comports())
             self.plcSelectBox['values'] = list(serial.tools.list_ports.comports())
         def onEnableTermPress():
@@ -545,7 +545,7 @@ class FrontEnd():
         ttk.Label(
             connectFrame, text = "PLC:", font = ("Times New Roman", 10)).grid(
             column = 0, row = 2, padx = 5, sticky=W) 
-        self.instrSelectBox = ttk.Combobox(connectFrame, values = self.Vi.rm.list_resources(), width=40)
+        self.instrSelectBox = ttk.Combobox(connectFrame, values = self.Vi.rm.list_resources(query='?*'), width=40)
         self.instrSelectBox.grid(row = 0, column = 1, padx = 10 , pady = 5)
         self.motorSelectBox = ttk.Combobox(connectFrame, values = list(serial.tools.list_ports.comports()), width=40)
         self.motorSelectBox.grid(row = 1, column = 1, padx = 10, pady = 5)
