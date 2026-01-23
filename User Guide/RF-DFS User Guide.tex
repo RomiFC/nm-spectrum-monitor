@@ -1207,6 +1207,9 @@ The panel components are connected to eachother through a terminal block similar
 \caption{RF-EMS PLC Line Wiring Diagram.}\label{fig:emscat5wiring}
 \end{figure}
 
+\subsection{Safety}
+When servicing any of the hardware or allowing other parties to service hardware, the operator is responsible from preventing hazardous conditions which may result in injury. DFS motor operation should be disabled with the lockout-tagout switch to prevent a remote operator or automated script from moving the dish while individuals are within the fenced area. Additionally, there is an AC breaker behind the RFI shack that can be used to kill power to the tower, dish, or shack as needed. This breaker also powers the VLA weather station so the operator should only disconnected the necessary breakers for servicing. Lastly, when operating the DFS remotely, the strobe light should be enabled 30 seconds prior to dish movement to warn on-site individuals.
+
 \section{Communications}\label{sec:comms}
 % maybe put pinouts and connections here instead to keep them all together
 The Python program controls communications with all off the necessary instruments but it is still necessary for a user to understand how these communications are facilitated in order to troubleshoot issues. The following sections describe how to open communications with each instrument manually and using the Python program.
@@ -1383,6 +1386,9 @@ The automation configuration window can be opened by clicking the \verb|Queue| b
 The scripting tab also contains some example preset functions that collect different trace types for reference. As a precaution, the scripted function should maintain any acquired thread locks for as long as necessary to prevent reacquiring the same lock during execution. If not, it's possible that a loop thread could acquire the lock, resulting in race conditions if it modifies the resource in a manner that the job thread is not expecting. The job scheduler also doesn't prevent the user from performing any actions while a job is active, meaning spectrum analyzer, PLC, and motor operations, can still be performed. If the user attempts to access a locked resource while a job is active, it is likely that the program or operation will become unresponsive until the job thread releases that lock.
 
 By default, the \verb|thread_max_workers| value is set to 1, meaning the scheduler can only generate one thread at a time and by extension, only one job can be active at a time. If a job is still active while a queued job is meant to trigger, it will be skipped and processed once the active job concludes operation. At this moment, the scheduler will either execute the skipped job if the \verb|misfire_grace_time| is greater than the elapsed time, or remove the job depending on the \verb|coalesce| setting. More information on \verb|misfire_grace_time| and \verb|coalesce| is available in the \verb|APScheduler| documentation.
+
+\subsubsection{Waterfall Plots}
+One of the primary functions of the NMSM is to allow for 24/7 spectrum monitoring. The principle means by which this is achieved is by collecting sweeps at an interval using the automation script and generating a waterfall plot with the tool under \verb|Run>Waterfall Plot Utility|. From here, the user can configure a scheduler to generate a 24 hour waterfall plot using all traces within the \verb|Trace Directory| that have a matching date and receiver. If the amount of traces is above the \verb|Threshold|, the utility will generate a matplotlib waterfall plot in the format under \verb|File Type|, a plotly.js waterfall plot in \verb|html| format, and an \textit{averaged} trace over the day.
 
 \subsubsection{Motor Encoder Calibration}
 As mentioned in Section~\ref{sec:motorpos}, the program relies on hard-coded encoder values to determine an accurate bearing. This is located in the python file \verb|defaultconfig.py| which is packaged within the program binary and can be used to generate a \verb|config.toml| by selecting the option under the \verb|File| header in Figure~\ref{fig:gui}.
@@ -1613,7 +1619,7 @@ As stated in Section~\ref{sec:rfchain}, this upgrade provides the framework to a
   \caption{Assembled PMA-183PLN+ Scattering Parameters}\label{fig:pma183}
 \end{figure}
 
-It may also be wise to put a switchable power amplifier at the RFI shack as shown in Figure~\ref{fig:poweramplifier}, this would improve the sensitivity of the receiver without causing compression or intermodulation distortion products. Additionally, if a sufficiently wideband PA was chosen, it could be used in conjunction with any of the signal chains after the downconverting stage as opposed to developing PAs for each receiver. The Mini-Circuits PMA5-83-LV+ could be a good candidate for this although boards have not been developed for it. This MMIC is also pin-compatible with the PMA5-83-2W+, a more expensive, higher power, amplifier.
+It may also be wise to put a switchable gain block amplifier at the RFI shack as shown in Figure~\ref{fig:poweramplifier}, this would improve the sensitivity of the receiver without causing compression or intermodulation distortion products. Additionally, if a sufficiently wideband gain block was chosen, it could be used in conjunction with any of the signal chains after the downconverting stage as opposed to developing amplifiers for each receiver. The Mini-Circuits PMA5-83-LV+ could be a good candidate for this although boards have not been developed for it. This MMIC is also pin-compatible with the PMA5-83-2W+, a more expensive, higher power, amplifier.
 
 Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifiers with typical values for operating frequency, gain, noise figure, output power at 1 dB compression, output third order intercept, and output power at saturation.
 
@@ -1625,7 +1631,7 @@ Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifie
       node[rotary switch = 4 in 60 wiper 60, anchor=in](sw4){};
       \draw(sw4.out 1) -| ++ (1, 0.5) -- ++ (3, 0) |- ++ (1, -0.5)
       node[rotary switch = 4 in 60 wiper 60, anchor=out 1, xscale=-1](sw5){};
-      \draw(sw4.out 2) to[amp, invert, t=\ctikzflipx{\small PA}] (sw5.out 2);
+      \draw(sw4.out 2) to[amp, invert, t=\ctikzflipx{\small GB}] (sw5.out 2);
       \draw(sw5.in) -- ++ (1, 0)
       node[rotary switch = 4 in 60 wiper 60, anchor=in](sw1){};
       \draw(sw1.out 1)[->] -- ++ (1.5, 0) coordinate(emsnode);
@@ -1639,7 +1645,7 @@ Table~\ref{tab:amplifiercomparison} shows a comparison of the discussed amplifie
       \draw(dfsnode.east) node[anchor=west]{To DFS};
     \end{circuitikz}
   \end{center}
-  \caption{Optional Power Amplifier Inside Shack.}\label{fig:poweramplifier}
+  \caption{Optional Gain Block Amplifier Inside Shack.}\label{fig:poweramplifier}
 \end{figure}
 \begin{table}[!htb]\rowcolors{1}{lightgray!30}{white}
   \begin{center}
@@ -1827,7 +1833,7 @@ These csv files are converted to a format compatible for DRIFT processing by rem
       Field       & Required  & Description \\ \hline
       \lstinline|instrument|    & Yes & Unique identifier for instrument or device (VLA, VLBA-PT, VLBA-LA, NMSM, etc.) per scan.\\
       \lstinline|receiver|      & Yes & DRIFT will have a separate list of receivers for each instrument (DFS1, EMS1, etc.). \\
-      \lstinline|polarization|  & Yes & Hardcoded for NM spectrum monitoring devices (EMS is linear vertical, DFS is unknown.)\\
+      \lstinline|polarization|  & Yes & Hardcoded for NM spectrum monitoring devices (EMS is linear vertical, DFS is right-hand circular.)\\
       \lstinline|intensity_unit|& Yes & Hardcoded for NM spectrum monitoring devices (dBm). \\
       \lstinline|scan_name|     & Yes & Unique string to represent the scan, will be displayed to the end user.\\
       \lstinline|scan_datetime| & Yes & One UTC time, isoformat, with timezone attached, to represent the entire scan.\\
