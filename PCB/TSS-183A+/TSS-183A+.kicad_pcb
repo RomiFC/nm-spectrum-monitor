@@ -8700,7 +8700,7 @@
   (gr_text "TSS-183A+" (at 159.35 104) (layer "B.SilkS") (tstamp b15bbf27-866b-4410-a4b3-61a54347f888)
     (effects (font (size 1 1) (thickness 0.2) bold) (justify left bottom mirror))
   )
-  (gr_text "RF-EMS" (at 159.35 102.5) (layer "F.SilkS") (tstamp c04902a9-ccee-42be-836f-ea3647816112)
+  (gr_text "NMSM" (at 159.35 102.5) (layer "F.SilkS") (tstamp c04902a9-ccee-42be-836f-ea3647816112)
     (effects (font (size 1.5 1.5) (thickness 0.3) bold) (justify right bottom))
   )
   (gr_text "Remy Nguyen" (at 159.35 104) (layer "F.SilkS") (tstamp e96cf6fb-f3e2-411a-bcb3-1a6949ef207d)
