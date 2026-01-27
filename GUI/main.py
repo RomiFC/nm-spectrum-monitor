@@ -521,17 +521,21 @@ class FrontEnd():
         def onDisconnectPress(device):
             match device:
                 case 'visa':
-                    self.Vi.closeSession()
+                    _target = self.Vi.closeSession
                     self.instrument = ''
                     self.instrSelectBox.set('')
                 case 'motor':
-                    self.motor.closeSerial()
+                    _target = self.motor.closeSerial
                     self.motorPort = ''
                     self.motorSelectBox.set('')
                 case 'plc':
-                    self.PLC.close()
+                    _target = self.PLC.close
                     self.plcPort = ''
                     self.plcSelectBox.set('')
+                case _:
+                    raise ValueError('Method onDisconnectPress of class FrontEnd received invalid device: {device}, expected: \'visa\', \'motor\', or \'plc\'.')
+            _thread = threading.Thread(target=_target, daemon=True)
+            _thread.start()
 
         # INSTRUMENT SELECTION FRAME & GRID
         connectFrame = ttk.LabelFrame(_parent, borderwidth = 2, text = "Instrument Connections")
