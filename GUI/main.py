@@ -2437,7 +2437,11 @@ def generateWaterfallDialog():
         _timezone = tzCombo.get()
         _filetype = ftCombo.get()
         _dpi = int(dpiEntry.get())
-        args = (_fromPath, _toPath, _threshold, _timezone, _filetype, _dpi)
+        _moveFlag = _moveFlagVar.get()
+        _makeMatpl = _makeMatplVar.get()
+        _makePlotly = _makePlotlyVar.get()
+        _makeAvg = _makeAvgVar.get()
+        args = (_fromPath, _toPath, _threshold, _timezone, _filetype, _dpi, _moveFlag, _makeMatpl, _makePlotly, _makeAvg)
         DEF_WF_FROM_PATH = _fromPath
         DEF_WF_TO_PATH = _toPath
         DEF_WF_THRESHOLD = _threshold
@@ -2470,11 +2474,16 @@ def generateWaterfallDialog():
             return
         clearAndSetWidget(entry, dir)
 
+    _moveFlagVar = BooleanVar(value=True)
+    _makeMatplVar = BooleanVar(value=True)
+    _makePlotlyVar = BooleanVar(value=True)
+    _makeAvgVar = BooleanVar(value=True)
+
     _parent = Toplevel()
     _parent.title('Waterfall Plot Utility')
     _parent.resizable(True, True)
     _parent.attributes('-topmost', True)
-    configWidgetsFrame = ttk.Frame(_parent, width=30)
+    configWidgetsFrame = ttk.Frame(_parent, width=50)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     pathFrame = ttk.Frame(configWidgetsFrame)
     pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
@@ -2533,14 +2542,24 @@ def generateWaterfallDialog():
     buttonFrame.grid(row = 4, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
     buttonFrame.columnconfigure(0, weight=1)
     buttonFrame.columnconfigure(1, weight=1)
+    
+    moveButton = ttk.Checkbutton(buttonFrame, text="Move csv when finished", variable=_moveFlagVar)
+    moveButton.grid(row=0, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    makePlotButton = ttk.Checkbutton(buttonFrame, text="Generate matplotlib plot", variable=_makeMatplVar)
+    makePlotButton.grid(row=1, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    makePlotlyButton = ttk.Checkbutton(buttonFrame, text="Generate plotly.js plot", variable=_makePlotlyVar)
+    makePlotlyButton.grid(row=2, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    makeAvgButton = ttk.Checkbutton(buttonFrame, text="Generate average trace", variable=_makeAvgVar)
+    makeAvgButton.grid(row=3, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+
     scheduleButton = ttk.Button(buttonFrame, text="Schedule Job", command=_scheduleWaterfall)
-    scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    scheduleButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
-    clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    clearButton.grid(row=1, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     regenerateButton = ttk.Button(buttonFrame, text="Regenerate", command=lambda: _scheduleWaterfall(now=True, regenerate=True))
-    regenerateButton.grid(row=1, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    regenerateButton.grid(row=2, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleWaterfall(now=True))
-    nowButton.grid(row=1, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton.grid(row=3, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
 def openTrace():
     filepath = filedialog.askopenfilename(title="Select a file", filetypes=(('Comma separated variables', '*.csv'),))
