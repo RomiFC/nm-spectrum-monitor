@@ -1979,7 +1979,7 @@ def openSaveDialog(type):
         if filename != '':
             Spec_An.fig.savefig(filename)
 
-def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
+def saveTrace(f=None, filePath=None, xdata=None, ydata=None, rcvrSuffix=''):
     """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found. This function is blocking and should only be called outside of the main thread.
 
     Args:
@@ -1998,7 +1998,7 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
         fileExists = True
         fileJoined = ''
         while fileExists:
-            fileName = Front_End.chainSelect + '-' + datetime.now().strftime('%Y-%m-%d') + '-' + str(x) +'.csv'
+            fileName = Front_End.chainSelect + rcvrSuffix + '-' + datetime.now().strftime('%Y-%m-%d') + '-' + str(x) +'.csv'
             fileJoined = os.path.join(filePath, fileName)
             fileExists = os.path.exists(fileJoined)
             x += 1
@@ -2573,7 +2573,6 @@ def openTrace():
             _time = _dt.strftime("%H:%M:%S") + f' ({LOCAL_TIMEZONE})'
         except:
             _time = trace.header.loc['Time'].item()
-        plt.ion()
         fig, ax = plt.subplots()
         ax.plot(x, y)
         ax.set_xlabel(f'Frequency ({trace.header.loc['X Axis Units'].item()})')
@@ -2585,6 +2584,7 @@ def openTrace():
         ax.xaxis.set_major_formatter(EngFormatter(unit='Hz'))
         ax.set_title(f'{os.path.basename(filepath)}\n{_time}')
         fig.canvas.draw()
+        fig.show()
 
 evalCheckbutton.configure(command=checkbuttonStateHandler)
 execCheckbutton.configure(command=checkbuttonStateHandler)
