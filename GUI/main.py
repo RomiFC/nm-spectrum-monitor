@@ -15,7 +15,9 @@ import os
 from datetime import date, datetime, timedelta, timezone
 import datetime as dt
 from tzlocal import get_localzone
+import pyvisa as visa
 from pyvisa import attributes
+from pyvisa import constants as ViConstants
 import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
@@ -146,21 +148,24 @@ dwfScheduler = BackgroundScheduler()
 # SPECTRUM ANALYZER PARAMETERS
 class Parameter:
     instances = []
-    def __init__(self, name, command, log = True):
+    def __init__(self, name, command, log=True, required=False):
         """Spectrum analyzer parameter and associated SCPI command.
 
         Args:
             name (string): Full name to be used in trace csv.
             command (string): SCPI command used to query/set parameter.
             log (bool): Determines whether or not to save the parameter to trace csv. Defaults to True.
+            required (bool): Determines if this parameter is necessary for the program to function. Defaults to False.
         """
         Parameter.instances.append(self)
         self.name = name
         self.command = command
         self.log = log
+        self.required = required
         self.arg = None
         self.widget = None
         self.value = None
+        self.isEnabled = True
 
     def update(self, arg = None, widget = None, value=None):
         """Update the argument/value and tkinter widget associated with the parameter.
@@ -176,10 +181,24 @@ class Parameter:
         if value is not None:
             self.value = value
 
+    def disable(self):
+        if isinstance(self.widget, (type(None), tk.BooleanVar, tk.DoubleVar, tk.IntVar, tk.StringVar)):
+            return
+        else:
+            disableChildren(self.widget.master)
+            self.isEnabled = False
+
+    def enable(self):
+        if isinstance(self.widget, (type(None), tk.BooleanVar, tk.DoubleVar, tk.IntVar, tk.StringVar)):
+            return
+        else:
+            enableChildren(self.widget.master)
+            self.isEnabled = True
+
 CenterFreq      = Parameter('Center Frequency', ':SENS:FREQ:CENTER', log=False)
 Span            = Parameter('Span', ':SENS:FREQ:SPAN', log=False)
-StartFreq       = Parameter('Start Frequency', ':SENS:FREQ:START')
-StopFreq        = Parameter('Stop Frequency', ':SENS:FREQ:STOP')
+StartFreq       = Parameter('Start Frequency', ':SENS:FREQ:START', required=True)
+StopFreq        = Parameter('Stop Frequency', ':SENS:FREQ:STOP', required=True)
 SweepTime       = Parameter('Sweep Time', ':SWE:TIME')
 Rbw             = Parameter('RBW', ':SENS:BANDWIDTH:RESOLUTION')
 Vbw             = Parameter('VBW', ':SENS:BANDWIDTH:VIDEO')
@@ -203,7 +222,7 @@ TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
 AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
-SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
+SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS', required=True)
 TimeParameter   = Parameter('Time', None)
 
 # real code starts here
@@ -1083,8 +1102,13 @@ class SpecAn(FrontEnd):
         if 'ymin' in kwargs and 'ymax' in kwargs:
             self.ax.set_ylim(kwargs["ymin"], kwargs["ymax"])
         else:
-            ymax = float(self.refLevelEntry.get())
-            ymin = ymax - float(self.numDivEntry.get()) * float(self.yScaleEntry.get())
+            try:
+                ymax = float(self.refLevelEntry.get())
+                ymin = ymax - float(self.numDivEntry.get()) * float(self.yScaleEntry.get())
+            except:
+                ymax = 0
+                ymin = -100
+                pass
             self.ax.set_ylim(ymin, ymax)
         self.ax.margins(0, 0.05)
         self.ax.grid(visible=TRUE, which='major', axis='both', linestyle='-.')
@@ -1172,16 +1196,25 @@ class SpecAn(FrontEnd):
         logging.debug(f"setAnalyzerValue generated list of dictionaries '_list' with value {_list}")
         with visaLock:
             for parameter in _list:
-                if parameter.command is None:
+                if parameter.command is None or not parameter.isEnabled:
                     continue
                 # Issue command with argument
                 if parameter.arg is not None:
                     self.Vi.openRsrc.write(f'{parameter.command} {parameter.arg}')
                 # Set widgets without issuing a parameter to command
                 try:
-                    buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?') # Default converter is float
-                except:
-                    buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?', converter='s')
+                    buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?', converter='s') # Default converter is float
+                except visa.errors.VisaIOError as e:
+                    logging.verbose(f'Command {parameter.command}? raised {type(e).__name__}: {e}')
+                    if parameter.required is True:
+                        raise e
+                    if e.error_code == ViConstants.VI_ERROR_TMO:
+                        parameter.disable()
+                        continue
+                    else:
+                        raise e
+                # except: # TODO: need to check if this is necessary to keep
+                #     buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?', converter='s')
                 logging.verbose(f"Command {parameter.command}? returned {buffer}")
                 parameter.update(value=buffer)
                 clearAndSetWidget(parameter.widget, buffer)
@@ -1199,9 +1232,9 @@ class SpecAn(FrontEnd):
                 visaLock.acquire()
                 self.Vi.resetAnalyzerState()
                 self.Vi.queryPowerUpErrors()
-                self.Vi.testBufferSize()
+                # self.Vi.testBufferSize()
                 # Set widget values
-                self.setAnalyzerValue()
+                # self.setAnalyzerValue()
                 visaLock.release()
             except Exception as e:
                 logging.error(f'{type(e).__name__}: {e}')
@@ -1229,6 +1262,8 @@ class SpecAn(FrontEnd):
                 self.idleButton.configure(state='disable')
                 self.loopButton.configure(state='enable')
                 self.toggleInputs(action = DISABLE)
+                for parameter in Parameter.instances:
+                    parameter.enable()
             case state.LOOP:
                 self.idleButton.configure(state='enable')
                 self.loopButton.configure(state='disable')
