@@ -51,7 +51,7 @@ from tktooltip import ToolTip
 # CONSTANTS
 IDLE_DELAY = 1.0
 ANALYZER_LOOP_DELAY = 0.5
-ANALYZER_REFRESH_DELAY = 0.3
+ANALYZER_REFRESH_DELAY = 0.05
 MOTOR_LOOP_DELAY = 0.5
 STATUS_MONITOR_DELAY = 0.2
 RETURN_ERROR = 1
@@ -162,12 +162,13 @@ class Parameter:
         self.command = command
         self.log = log
         self.required = required
-        self.arg = None
-        self.widget = None
-        self.value = None
-        self.isEnabled = True
+        self.arg = None             # Argument to issue to the device, used in SpecAn.setAnalyzerValue
+        self.widget = None          # Widget (entry/combobox) or tkinter variable (radiobutton) which controls the parameter
+        self.value = None           # Last queried value for the parameter
+        self.isEnabled = True       # State of the parameter (are the widgets which controlled this parameter enabled or disabled), defaults to True and is tested each time the SpecAn state goes to state.LOOP
+        self.commandList = []       # Additional commands to try for the same Parameter, e.g. TRAC:TYPE and DISP:WIND1:SUBW:TRAC1:MODE for Keysight and R&S frameworks.
 
-    def update(self, arg = None, widget = None, value=None):
+    def update(self, arg:str = None, widget = None, value:any = None):
         """Update the argument/value and tkinter widget associated with the parameter.
 
         Args:
@@ -180,6 +181,24 @@ class Parameter:
             self.widget = widget
         if value is not None:
             self.value = value
+
+    def addCommand(self, command:str):
+        self.commandList.append(command)
+
+    def renewCommand(self, command:str):
+        """Swaps `self.command` with the string passed in `command`.
+
+        Args:
+            command (str): SCPI string in `self.commandList` to replace the active command.
+        """
+        if not isinstance(command, str):
+            raise TypeError(f"Command passed to Parameter.renewCommand did not match correct type. Expected str, received {type(command)}")
+        if command in self.commandList:
+            self.commandList.remove(command)
+            self.commandList.append(self.command)
+            self.command = command
+        else:
+            raise ValueError(f"Command {command} not found in self.commandList: {self.commandList}")
 
     def disable(self):
         if isinstance(self.widget, (type(None), tk.BooleanVar, tk.DoubleVar, tk.IntVar, tk.StringVar)):
@@ -219,6 +238,7 @@ XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
 TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
+TraceType.addCommand(':DISP:WIND1:SUBW:TRAC1:MODE')
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
 AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
@@ -1191,6 +1211,21 @@ class SpecAn(FrontEnd):
             if _list[index].arg is not None:
                 _list.insert(0, _list.pop(index))
 
+        def _query(_parameter):
+            try:
+                buffer = self.Vi.openRsrc.query_ascii_values(f'{_parameter.command}?', converter='s') # Default converter is float
+                return buffer
+            except visa.errors.VisaIOError as e:
+                # If the query raises an error, try other commands in Parameter.commandList or disable the parameter
+                logging.verbose(f'Command {_parameter.command}? raised {type(e).__name__}: {e}')
+                if _parameter.required is True:
+                    raise e
+                if e.error_code == ViConstants.VI_ERROR_TMO:
+                    _parameter.disable()
+                    return e.error_code
+                else:
+                    raise e
+
 
         # EXECUTE COMMANDS
         logging.debug(f"setAnalyzerValue generated list of dictionaries '_list' with value {_list}")
@@ -1201,23 +1236,21 @@ class SpecAn(FrontEnd):
                 # Issue command with argument
                 if parameter.arg is not None:
                     self.Vi.openRsrc.write(f'{parameter.command} {parameter.arg}')
-                # Set widgets without issuing a parameter to command
-                try:
-                    buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?', converter='s') # Default converter is float
-                except visa.errors.VisaIOError as e:
-                    logging.verbose(f'Command {parameter.command}? raised {type(e).__name__}: {e}')
-                    if parameter.required is True:
-                        raise e
-                    if e.error_code == ViConstants.VI_ERROR_TMO:
-                        parameter.disable()
-                        continue
+
+                # Issue command as query
+                buffer = _query(parameter)
+                if buffer == ViConstants.VI_ERROR_TMO:
+                    if parameter.commandList:
+                        for newCommand in parameter.commandList[:]:
+                            parameter.renewCommand(newCommand)
+                            buffer = _query(parameter)
                     else:
-                        raise e
-                # except: # TODO: need to check if this is necessary to keep
-                #     buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?', converter='s')
-                logging.verbose(f"Command {parameter.command}? returned {buffer}")
-                parameter.update(value=buffer)
-                clearAndSetWidget(parameter.widget, buffer)
+                        continue
+                if not buffer == ViConstants.VI_ERROR_TMO:
+                    parameter.enable()
+                    logging.verbose(f"Command {parameter.command}? returned {buffer}")
+                    parameter.update(value=buffer)
+                    clearAndSetWidget(parameter.widget, buffer)
         # Set plot limits
         with specPlotLock:
             self.setAnalyzerPlotLimits()
