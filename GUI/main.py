@@ -163,12 +163,13 @@ class Parameter:
         self.log = log
         self.required = required
         self.arg = None             # Argument to issue to the device, used in SpecAn.setAnalyzerValue
-        self.widget = None          # Widget (entry/combobox) or tkinter variable (radiobutton) which controls the parameter
+        self.widget = None          # Widget (entry/combobox/radiobutton) which controls the parameter. In the case of radiobuttons, only one button needs to be stored here but all buttons should share a parent frame/labelframe
+        self.tkvar = None           # Tkinter variable which controls the radiobutton widget
         self.value = None           # Last queried value for the parameter
         self.isEnabled = True       # State of the parameter (are the widgets which controlled this parameter enabled or disabled), defaults to True and is tested each time the SpecAn state goes to state.LOOP
         self.commandList = []       # Additional commands to try for the same Parameter, e.g. TRAC:TYPE and DISP:WIND1:SUBW:TRAC1:MODE for Keysight and R&S frameworks.
 
-    def update(self, arg:str = None, widget = None, value:any = None):
+    def update(self, arg:str = None, widget = None, tkvar = None, value:any = None):
         """Update the argument/value and tkinter widget associated with the parameter.
 
         Args:
@@ -181,6 +182,8 @@ class Parameter:
             self.widget = widget
         if value is not None:
             self.value = value
+        if tkvar is not None:
+            self.tkvar = tkvar
 
     def addCommand(self, command:str):
         self.commandList.append(command)
@@ -201,14 +204,14 @@ class Parameter:
             raise ValueError(f"Command {command} not found in self.commandList: {self.commandList}")
 
     def disable(self):
-        if isinstance(self.widget, (type(None), tk.BooleanVar, tk.DoubleVar, tk.IntVar, tk.StringVar)):
+        if isinstance(self.widget, (type(None),)):
             return
         else:
             disableChildren(self.widget.master)
             self.isEnabled = False
 
     def enable(self):
-        if isinstance(self.widget, (type(None), tk.BooleanVar, tk.DoubleVar, tk.IntVar, tk.StringVar)):
+        if isinstance(self.widget, (type(None),)):
             return
         else:
             enableChildren(self.widget.master)
@@ -841,9 +844,11 @@ class SpecAn(FrontEnd):
         spanFrame.grid(row=1, column=0, sticky=NSEW)
         self.spanEntry = ttk.Entry(spanFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.spanEntry.pack(expand=True, fill=BOTH)
-        self.spanSweptButton = ttk.Radiobutton(spanFrame, variable=tkSpanType, text = "Swept Span", value=1)
+        spanSubFrame = tk.Frame(spanFrame)
+        spanSubFrame.pack(expand=True, fill=BOTH)
+        self.spanSweptButton = ttk.Radiobutton(spanSubFrame, variable=tkSpanType, text = "Swept Span", value=1)
         self.spanSweptButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.spanZeroButton = ttk.Radiobutton(spanFrame, variable=tkSpanType, text = "Zero Span", value=0)
+        self.spanZeroButton = ttk.Radiobutton(spanSubFrame, variable=tkSpanType, text = "Zero Span", value=0)
         self.spanZeroButton.pack(anchor=W, expand=True, fill=BOTH)
         self.spanFullButton = ttk.Button(spanFrame, text = "Full Span")
         self.spanFullButton.pack(anchor=S, expand=True, fill=BOTH)
@@ -863,27 +868,33 @@ class SpecAn(FrontEnd):
         rbwFrame.grid(row=0, column=0, sticky=NSEW)
         self.rbwEntry = ttk.Entry(rbwFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.rbwEntry.pack(expand=True, fill=BOTH)
-        self.rbwAutoButton = ttk.Radiobutton(rbwFrame, variable=tkRbwType, text="Auto", value=AUTO)
+        rbwSubFrame = tk.Frame(rbwFrame)
+        rbwSubFrame.pack(expand=True, fill=BOTH)
+        self.rbwAutoButton = ttk.Radiobutton(rbwSubFrame, variable=tkRbwType, text="Auto", value=AUTO)
         self.rbwAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.rbwManButton = ttk.Radiobutton(rbwFrame, variable=tkRbwType, text="Manual", value=MANUAL)
+        self.rbwManButton = ttk.Radiobutton(rbwSubFrame, variable=tkRbwType, text="Manual", value=MANUAL)
         self.rbwManButton.pack(anchor=W, expand=True, fill=BOTH)
         
         vbwFrame = ttk.LabelFrame(self.tab2, text="Video BW")
         vbwFrame.grid(row=1, column=0, sticky=NSEW)
         self.vbwEntry = ttk.Entry(vbwFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.vbwEntry.pack(expand=True, fill=BOTH)
-        self.vbwAutoButton = ttk.Radiobutton(vbwFrame, variable=tkVbwType, text="Auto", value=AUTO)
+        vbwSubFrame = tk.Frame(vbwFrame)
+        vbwSubFrame.pack(expand=True, fill=BOTH)
+        self.vbwAutoButton = ttk.Radiobutton(vbwSubFrame, variable=tkVbwType, text="Auto", value=AUTO)
         self.vbwAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.vbwManButton = ttk.Radiobutton(vbwFrame, variable=tkVbwType, text="Manual", value=MANUAL)
+        self.vbwManButton = ttk.Radiobutton(vbwSubFrame, variable=tkVbwType, text="Manual", value=MANUAL)
         self.vbwManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         bwRatioFrame = ttk.LabelFrame(self.tab2, text="VBW:RBW")
         bwRatioFrame.grid(row=2, column=0, sticky=NSEW)
         self.bwRatioEntry = ttk.Entry(bwRatioFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.bwRatioEntry.pack(expand=True, fill=BOTH)
-        self.bwRatioAutoButton = ttk.Radiobutton(bwRatioFrame, variable=tkBwRatioType, text="Auto", value=AUTO)
+        bwRatioSubFrame = tk.Frame(bwRatioFrame)
+        bwRatioSubFrame.pack(expand=True, fill=BOTH)
+        self.bwRatioAutoButton = ttk.Radiobutton(bwRatioSubFrame, variable=tkBwRatioType, text="Auto", value=AUTO)
         self.bwRatioAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.bwRatioManButton = ttk.Radiobutton(bwRatioFrame, variable=tkBwRatioType, text="Manual", value=MANUAL)
+        self.bwRatioManButton = ttk.Radiobutton(bwRatioSubFrame, variable=tkBwRatioType, text="Manual", value=MANUAL)
         self.bwRatioManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         rbwFilterShapeFrame = ttk.LabelFrame(self.tab2, text="RBW Filter Shape")
@@ -916,9 +927,11 @@ class SpecAn(FrontEnd):
         attenFrame.grid(row=3, column=0, sticky=NSEW)
         self.attenEntry = ttk.Entry(attenFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.attenEntry.pack(expand=True, fill=BOTH)
-        self.attenAutoButton = ttk.Radiobutton(attenFrame, variable=tkAttenType, text="Auto", value=AUTO)
+        attenSubFrame = tk.Frame(attenFrame)
+        attenSubFrame.pack(expand=True, fill=BOTH)
+        self.attenAutoButton = ttk.Radiobutton(attenSubFrame, variable=tkAttenType, text="Auto", value=AUTO)
         self.attenAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.attenManButton = ttk.Radiobutton(attenFrame, variable=tkAttenType, text="Manual", value=MANUAL)
+        self.attenManButton = ttk.Radiobutton(attenSubFrame, variable=tkAttenType, text="Manual", value=MANUAL)
         self.attenManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         unitPowerFrame = ttk.LabelFrame(self.tab3, text="Unit (Power)")
@@ -936,9 +949,11 @@ class SpecAn(FrontEnd):
         sweepTimeFrame.grid(row=1, column=0, sticky=NSEW)
         self.sweepTimeEntry = ttk.Entry(sweepTimeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.sweepTimeEntry.pack(expand=True, fill=BOTH)
-        self.sweepAutoButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Auto", value=AUTO)
+        sweepTimeSubFrame = tk.Frame(sweepTimeFrame)
+        sweepTimeSubFrame.pack(expand=True, fill=BOTH)
+        self.sweepAutoButton = ttk.Radiobutton(sweepTimeSubFrame, variable=tkSweepType, text="Auto", value=AUTO)
         self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
+        self.sweepManButton = ttk.Radiobutton(sweepTimeSubFrame, variable=tkSweepType, text="Manual", value=MANUAL)
         self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # MEASUREMENT TAB 5 (TRACE)
@@ -962,9 +977,11 @@ class SpecAn(FrontEnd):
         avgTypeFrame.grid(row=3, column=0, sticky=NSEW)
         self.avgTypeCombo = ttk.Combobox(avgTypeFrame, values=self.AVG_TYPE_VALUES)
         self.avgTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
-        self.avgAutoButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Auto", value=AUTO)
+        avgTypeSubFrame = tk.Frame(avgTypeFrame)
+        avgTypeSubFrame.pack(expand=True, fill=BOTH)
+        self.avgAutoButton = ttk.Radiobutton(avgTypeSubFrame, variable=tkAvgType, text="Auto", value=AUTO)
         self.avgAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.avgManButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Manual", value=MANUAL)
+        self.avgManButton = ttk.Radiobutton(avgTypeSubFrame, variable=tkAvgType, text="Manual", value=MANUAL)
         self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # SWEEP BUTTONS
@@ -996,19 +1013,19 @@ class SpecAn(FrontEnd):
         NumDiv.update(widget=self.numDivEntry)
         YScale.update(widget=self.yScaleEntry)
         Atten.update(widget=self.attenEntry)
-        SpanType.update(widget=tkSpanType)
-        SweepType.update(widget=tkSweepType)
-        RbwType.update(widget=tkRbwType)
-        VbwType.update(widget=tkVbwType)
-        BwRatioType.update(widget=tkBwRatioType)
+        SpanType.update(widget=self.spanZeroButton, tkvar=tkSpanType)
+        SweepType.update(widget=self.sweepAutoButton, tkvar=tkSweepType)
+        RbwType.update(widget=self.rbwAutoButton, tkvar=tkRbwType)
+        VbwType.update(widget=self.vbwAutoButton, tkvar=tkVbwType)
+        BwRatioType.update(widget=self.bwRatioAutoButton, tkvar=tkBwRatioType)
         RbwFilterShape.update(widget=self.rbwFilterShapeCombo)
         RbwFilterType.update(widget=self.rbwFilterTypeCombo)
-        AttenType.update(widget=tkAttenType)
+        AttenType.update(widget=self.attenAutoButton, tkvar=tkAttenType)
         YAxisUnit.update(widget=self.unitPowerEntry)
         SweepPoints.update(widget=self.sweepPointsEntry)
         TraceType.update(widget=self.traceTypeCombo)
         AvgType.update(widget=self.avgTypeCombo)
-        AvgAutoMan.update(widget=tkAvgType)
+        AvgAutoMan.update(widget=self.avgAutoButton, tkvar=tkAvgType)
         AvgHoldCount.update(widget=self.avgCountEntry)
 
         # Generate thread to handle live data plot in background
@@ -1250,7 +1267,10 @@ class SpecAn(FrontEnd):
                     parameter.enable()
                     logging.verbose(f"Command {parameter.command}? returned {buffer}")
                     parameter.update(value=buffer)
-                    clearAndSetWidget(parameter.widget, buffer)
+                    if parameter.tkvar:
+                        clearAndSetWidget(parameter.tkvar, buffer)
+                    else:
+                        clearAndSetWidget(parameter.widget, buffer)
         # Set plot limits
         with specPlotLock:
             self.setAnalyzerPlotLimits()
