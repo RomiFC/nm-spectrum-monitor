@@ -202,6 +202,21 @@ class Parameter:
             self.command = command
         else:
             raise ValueError(f"Command {command} not found in self.commandList: {self.commandList}")
+        
+    def getValue(self, dtype: type):
+        """Python may interpret scpi return values as a list or string, sometimes with quotes, brackets or other characters. This function returns the value in the type passed in `type`.
+
+        Returns:
+            value: `Parameter.value` in the type passed as an argument, with quotes, brackets, etc. removed.
+        """
+        if isinstance(self.value, (list,)):
+            try:
+                value = self.value[0].strip("[]{}()#* \n\t")
+            except:
+                value = str(self.value).strip("[]{}()#* \n\t")
+        else:
+            value = str(self.value).strip("[]{}()#* \n\t")
+        return dtype(value)
 
     def disable(self):
         if isinstance(self.widget, (type(None),)):
@@ -226,8 +241,9 @@ Rbw             = Parameter('RBW', ':SENS:BANDWIDTH:RESOLUTION')
 Vbw             = Parameter('VBW', ':SENS:BANDWIDTH:VIDEO')
 BwRatio         = Parameter('VBW:3 dB RBW', ':SENS:BANDWIDTH:VIDEO:RATIO', log=False)
 Ref             = Parameter('Ref Level', ':DISP:WINDOW:TRACE:Y:RLEVEL', log=False)
-NumDiv          = Parameter('Number of Divisions', ':DISP:WINDOW:TRACE:Y:NDIV', log=False)
-YScale          = Parameter('Scale/Div', ':DISP:WINDOW:TRACE:Y:PDIV', log=False)
+NumDiv          = Parameter('Number of Divisions', ':DISP:WINDOW:TRACE:Y:NDIV', log=False)  # Keysight
+YScale          = Parameter('Scale/Div', ':DISP:WINDOW:TRACE:Y:PDIV', log=False)            # Keysight
+YRange          = Parameter('Range', ':DISP:TRACE:Y:SCALE', log=False)                      # R&S
 Atten           = Parameter('Attenuation', ':SENS:POWER:RF:ATTENUATION')
 SpanType        = Parameter('Swept Span', ':SENS:FREQ:SPAN', log=False)
 SweepType       = Parameter('Auto Sweep Time', ':SWE:TIME:AUTO', log=False)
@@ -923,8 +939,13 @@ class SpecAn(FrontEnd):
         self.numDivEntry = ttk.Entry(numDivFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.numDivEntry.pack(expand=True, fill=BOTH)
 
+        yRangeFrame = ttk.LabelFrame(self.tab3, text="Range")
+        yRangeFrame.grid(row=3, column=0, sticky=NSEW)
+        self.yRangeEntry = ttk.Entry(yRangeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.yRangeEntry.pack(expand=True, fill=BOTH)
+
         attenFrame = ttk.LabelFrame(self.tab3, text="Mech Atten")
-        attenFrame.grid(row=3, column=0, sticky=NSEW)
+        attenFrame.grid(row=4, column=0, sticky=NSEW)
         self.attenEntry = ttk.Entry(attenFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.attenEntry.pack(expand=True, fill=BOTH)
         attenSubFrame = tk.Frame(attenFrame)
@@ -935,7 +956,7 @@ class SpecAn(FrontEnd):
         self.attenManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         unitPowerFrame = ttk.LabelFrame(self.tab3, text="Unit (Power)")
-        unitPowerFrame.grid(row=4, column=0, sticky=NSEW)
+        unitPowerFrame.grid(row=5, column=0, sticky=NSEW)
         self.unitPowerEntry = ttk.Entry(unitPowerFrame, state="disabled")
         self.unitPowerEntry.pack(expand=True, fill=BOTH)
 
@@ -1012,6 +1033,7 @@ class SpecAn(FrontEnd):
         Ref.update(widget=self.refLevelEntry)
         NumDiv.update(widget=self.numDivEntry)
         YScale.update(widget=self.yScaleEntry)
+        YRange.update(widget=self.yRangeEntry)
         Atten.update(widget=self.attenEntry)
         SpanType.update(widget=self.spanZeroButton, tkvar=tkSpanType)
         SweepType.update(widget=self.sweepAutoButton, tkvar=tkSweepType)
@@ -1046,6 +1068,7 @@ class SpecAn(FrontEnd):
         self.bwRatioEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, bwratio = self.bwRatioEntry.get()))
         self.refLevelEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, ref = self.refLevelEntry.get()))
         self.yScaleEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yscale = self.yScaleEntry.get()))
+        self.yRangeEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yrange = self.yRangeEntry.get()))
         self.numDivEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, numdiv = self.numDivEntry.get()))
         self.attenEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, atten = self.attenEntry.get()))
         self.sweepPointsEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, sweeppoints = self.sweepPointsEntry.get()))
@@ -1129,23 +1152,27 @@ class SpecAn(FrontEnd):
         else:
             if tkSpanType.get() == 0:
                 xmin = 0
-                xmax = round(float(self.sweepTimeEntry.get()), 5)
+                xmax = round(SweepTime.getValue(float), 5)
                 self.ax.set_xlabel("Time (s)")
             else:
-                xmin = float(self.startFreqEntry.get())
-                xmax = float(self.stopFreqEntry.get())
+                xmin = StartFreq.getValue(float)
+                xmax = StopFreq.getValue(float)
                 self.ax.set_xlabel("Frequency (Hz)")
             self.ax.set_xlim(xmin, xmax)
+
         if 'ymin' in kwargs and 'ymax' in kwargs:
             self.ax.set_ylim(kwargs["ymin"], kwargs["ymax"])
         else:
-            try:
-                ymax = float(self.refLevelEntry.get())
-                ymin = ymax - float(self.numDivEntry.get()) * float(self.yScaleEntry.get())
-            except:
+            if not Ref.isEnabled:
                 ymax = 0
                 ymin = -100
-                pass
+            else:
+                if NumDiv.isEnabled and YScale.isEnabled:
+                    ymax = Ref.getValue(float)
+                    ymin = ymax - NumDiv.getValue(float) * YScale.getValue(float)
+                elif YRange.isEnabled:
+                    ymax = Ref.getValue(float)
+                    ymin = ymax - YRange.getValue(float)
             self.ax.set_ylim(ymin, ymax)
         self.ax.margins(0, 0.05)
         self.ax.grid(visible=TRUE, which='major', axis='both', linestyle='-.')
@@ -1159,7 +1186,33 @@ class SpecAn(FrontEnd):
         thread = threading.Thread(target=self.setAnalyzerValue, kwargs=_dict)
         thread.start()
 
-    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, sweeppoints=None, tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
+    def setAnalyzerValue(self,
+    centerfreq=None,
+    span=None,
+    startfreq=None,
+    stopfreq=None,
+    sweeptime=None,
+    rbw=None,
+    vbw=None,
+    bwratio=None,
+    ref=None,
+    numdiv=None,
+    yscale=None,
+    yrange=None,
+    atten=None,
+    spantype=None,
+    sweeptype=None,
+    rbwtype=None,
+    vbwtype=None,
+    bwratiotype=None,
+    rbwfiltershape=None,
+    rbwfiltertype=None,
+    attentype=None,
+    sweeppoints=None,
+    tracetype=None,
+    avgcount=None,
+    avgtype=None,
+    avgautoman=None):
         """Issues command to spectrum analyzer with the value of kwarg as the argument and queries for widget values. If the value is None or if there are no kwargs, query the spectrum analyzer to set widget values instead.
         
         Args:
@@ -1174,6 +1227,7 @@ class SpecAn(FrontEnd):
             ref (float, optional): Reference level in dBm. Defaults to None.
             numdiv (float, optional): Number of yscale divisions. Defaults to None. Converted to int by device.
             yscale (float, optional): Scale per division in dB. Defaults to None.
+            yrange (float, optional): Total y-axis range. Defaults to None.
             atten (float, optional): Mechanical attenuation in dB. Defaults to None. Converted to int by device.
             spantype (bool, optional): 1 for swept span, 0 for zero span (time domain). Defaults to None.
             rbwtype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
@@ -1203,6 +1257,7 @@ class SpecAn(FrontEnd):
         Ref.update(arg=ref)
         NumDiv.update(arg=numdiv)
         YScale.update(arg=yscale)
+        YRange.update(arg=yrange)
         Atten.update(arg=atten)
         SpanType.update(arg=spantype)
         SweepType.update(arg=sweeptype)
