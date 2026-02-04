@@ -206,6 +206,9 @@ class Parameter:
     def getValue(self, dtype: type):
         """Python may interpret scpi return values as a list or string, sometimes with quotes, brackets or other characters. This function returns the value in the type passed in `type`.
 
+        Args:
+            dtype (type): Data type to cast on the return value.
+        
         Returns:
             value: `Parameter.value` in the type passed as an argument, with quotes, brackets, etc. removed.
         """
@@ -256,8 +259,8 @@ AttenType       = Parameter('Auto Attenuation', ':SENS:POWER:ATT:AUTO', log=Fals
 XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
-TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
-TraceType.addCommand(':DISP:WIND1:SUBW:TRAC1:MODE')
+TraceType       = Parameter('Trace Type', ':TRACE:TYPE')                                    # Keysight
+TraceType.addCommand(':DISP:WIND1:SUBW:TRAC1:MODE')                                         # R&S
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
 AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)

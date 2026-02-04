@@ -66,51 +66,7 @@ graph BT
 ### Packages
 
 ```bash
-pip install pyserial
-```
-
-```bash
-pip install pyvisa
-```
-
-```bash
-pip install matplotlib
-```
-
-```bash
-pip install plotly
-```
-
-```bash
-pip install numpy
-```
-
-```bash
-pip install pandas
-```
-
-```bash
-pip install apscheduler
-```
-
-```bash
-pip install pytz
-```
-
-```bash
-pip install ttkthemes
-```
-
-```bash
-pip install tkcalendar
-```
-
-```bash
-pip install tktimepicker
-```
-
-```bash
-pip install tkinter-tooltip
+pip install -r requirements.txt
 ```
 
 ## :mailbox: Authors
