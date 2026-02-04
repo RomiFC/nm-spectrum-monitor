@@ -15,7 +15,9 @@ import os
 from datetime import date, datetime, timedelta, timezone
 import datetime as dt
 from tzlocal import get_localzone
+import pyvisa as visa
 from pyvisa import attributes
+from pyvisa import constants as ViConstants
 import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
@@ -49,7 +51,7 @@ from tktooltip import ToolTip
 # CONSTANTS
 IDLE_DELAY = 1.0
 ANALYZER_LOOP_DELAY = 0.5
-ANALYZER_REFRESH_DELAY = 0.3
+ANALYZER_REFRESH_DELAY = 0.05
 MOTOR_LOOP_DELAY = 0.5
 STATUS_MONITOR_DELAY = 0.2
 RETURN_ERROR = 1
@@ -146,23 +148,28 @@ dwfScheduler = BackgroundScheduler()
 # SPECTRUM ANALYZER PARAMETERS
 class Parameter:
     instances = []
-    def __init__(self, name, command, log = True):
+    def __init__(self, name, command, log=True, required=False):
         """Spectrum analyzer parameter and associated SCPI command.
 
         Args:
             name (string): Full name to be used in trace csv.
             command (string): SCPI command used to query/set parameter.
             log (bool): Determines whether or not to save the parameter to trace csv. Defaults to True.
+            required (bool): Determines if this parameter is necessary for the program to function. Defaults to False.
         """
         Parameter.instances.append(self)
         self.name = name
         self.command = command
         self.log = log
-        self.arg = None
-        self.widget = None
-        self.value = None
+        self.required = required
+        self.arg = None             # Argument to issue to the device, used in SpecAn.setAnalyzerValue
+        self.widget = None          # Widget (entry/combobox/radiobutton) which controls the parameter. In the case of radiobuttons, only one button needs to be stored here but all buttons should share a parent frame/labelframe
+        self.tkvar = None           # Tkinter variable which controls the radiobutton widget
+        self.value = None           # Last queried value for the parameter
+        self.isEnabled = True       # State of the parameter (are the widgets which controlled this parameter enabled or disabled), defaults to True and is tested each time the SpecAn state goes to state.LOOP
+        self.commandList = []       # Additional commands to try for the same Parameter, e.g. TRAC:TYPE and DISP:WIND1:SUBW:TRAC1:MODE for Keysight and R&S frameworks.
 
-    def update(self, arg = None, widget = None, value=None):
+    def update(self, arg:str = None, widget = None, tkvar = None, value:any = None):
         """Update the argument/value and tkinter widget associated with the parameter.
 
         Args:
@@ -175,18 +182,71 @@ class Parameter:
             self.widget = widget
         if value is not None:
             self.value = value
+        if tkvar is not None:
+            self.tkvar = tkvar
+
+    def addCommand(self, command:str):
+        self.commandList.append(command)
+
+    def renewCommand(self, command:str):
+        """Swaps `self.command` with the string passed in `command`.
+
+        Args:
+            command (str): SCPI string in `self.commandList` to replace the active command.
+        """
+        if not isinstance(command, str):
+            raise TypeError(f"Command passed to Parameter.renewCommand did not match correct type. Expected str, received {type(command)}")
+        if command in self.commandList:
+            self.commandList.remove(command)
+            self.commandList.append(self.command)
+            self.command = command
+        else:
+            raise ValueError(f"Command {command} not found in self.commandList: {self.commandList}")
+        
+    def getValue(self, dtype: type):
+        """Python may interpret scpi return values as a list or string, sometimes with quotes, brackets or other characters. This function returns the value in the type passed in `type`.
+
+        Args:
+            dtype (type): Data type to cast on the return value.
+        
+        Returns:
+            value: `Parameter.value` in the type passed as an argument, with quotes, brackets, etc. removed.
+        """
+        if isinstance(self.value, (list,)):
+            try:
+                value = self.value[0].strip("[]{}()#* \n\t")
+            except:
+                value = str(self.value).strip("[]{}()#* \n\t")
+        else:
+            value = str(self.value).strip("[]{}()#* \n\t")
+        return dtype(value)
+
+    def disable(self):
+        if isinstance(self.widget, (type(None),)):
+            return
+        else:
+            disableChildren(self.widget.master)
+            self.isEnabled = False
+
+    def enable(self):
+        if isinstance(self.widget, (type(None),)):
+            return
+        else:
+            enableChildren(self.widget.master)
+            self.isEnabled = True
 
 CenterFreq      = Parameter('Center Frequency', ':SENS:FREQ:CENTER', log=False)
 Span            = Parameter('Span', ':SENS:FREQ:SPAN', log=False)
-StartFreq       = Parameter('Start Frequency', ':SENS:FREQ:START')
-StopFreq        = Parameter('Stop Frequency', ':SENS:FREQ:STOP')
+StartFreq       = Parameter('Start Frequency', ':SENS:FREQ:START', required=True)
+StopFreq        = Parameter('Stop Frequency', ':SENS:FREQ:STOP', required=True)
 SweepTime       = Parameter('Sweep Time', ':SWE:TIME')
 Rbw             = Parameter('RBW', ':SENS:BANDWIDTH:RESOLUTION')
 Vbw             = Parameter('VBW', ':SENS:BANDWIDTH:VIDEO')
 BwRatio         = Parameter('VBW:3 dB RBW', ':SENS:BANDWIDTH:VIDEO:RATIO', log=False)
 Ref             = Parameter('Ref Level', ':DISP:WINDOW:TRACE:Y:RLEVEL', log=False)
-NumDiv          = Parameter('Number of Divisions', ':DISP:WINDOW:TRACE:Y:NDIV', log=False)
-YScale          = Parameter('Scale/Div', ':DISP:WINDOW:TRACE:Y:PDIV', log=False)
+NumDiv          = Parameter('Number of Divisions', ':DISP:WINDOW:TRACE:Y:NDIV', log=False)  # Keysight
+YScale          = Parameter('Scale/Div', ':DISP:WINDOW:TRACE:Y:PDIV', log=False)            # Keysight
+YRange          = Parameter('Range', ':DISP:TRACE:Y:SCALE', log=False)                      # R&S
 Atten           = Parameter('Attenuation', ':SENS:POWER:RF:ATTENUATION')
 SpanType        = Parameter('Swept Span', ':SENS:FREQ:SPAN', log=False)
 SweepType       = Parameter('Auto Sweep Time', ':SWE:TIME:AUTO', log=False)
@@ -199,11 +259,12 @@ AttenType       = Parameter('Auto Attenuation', ':SENS:POWER:ATT:AUTO', log=Fals
 XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
-TraceType       = Parameter('Trace Type', ':TRACE:TYPE')
+TraceType       = Parameter('Trace Type', ':TRACE:TYPE')                                    # Keysight
+TraceType.addCommand(':DISP:WIND1:SUBW:TRAC1:MODE')                                         # R&S
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
 AvgHoldCount    = Parameter('Average/Hold Count', ':SENS:AVER:COUNT', log=False)
-SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS')
+SweepPoints     = Parameter('Number of Points', ':SENS:SWEEP:POINTS', required=True)
 TimeParameter   = Parameter('Time', None)
 
 # real code starts here
@@ -510,7 +571,7 @@ class FrontEnd():
             """Update the values in the SCPI instrument selection box
             """
             logging.info('Searching for resources...')
-            self.instrSelectBox['values'] = self.Vi.rm.list_resources()
+            self.instrSelectBox['values'] = self.Vi.rm.list_resources(query='?*')
             self.motorSelectBox['values'] = list(serial.tools.list_ports.comports())
             self.plcSelectBox['values'] = list(serial.tools.list_ports.comports())
         def onEnableTermPress():
@@ -521,17 +582,21 @@ class FrontEnd():
         def onDisconnectPress(device):
             match device:
                 case 'visa':
-                    self.Vi.closeSession()
+                    _target = self.Vi.closeSession
                     self.instrument = ''
                     self.instrSelectBox.set('')
                 case 'motor':
-                    self.motor.closeSerial()
+                    _target = self.motor.closeSerial
                     self.motorPort = ''
                     self.motorSelectBox.set('')
                 case 'plc':
-                    self.PLC.close()
+                    _target = self.PLC.close
                     self.plcPort = ''
                     self.plcSelectBox.set('')
+                case _:
+                    raise ValueError('Method onDisconnectPress of class FrontEnd received invalid device: {device}, expected: \'visa\', \'motor\', or \'plc\'.')
+            _thread = threading.Thread(target=_target, daemon=True)
+            _thread.start()
 
         # INSTRUMENT SELECTION FRAME & GRID
         connectFrame = ttk.LabelFrame(_parent, borderwidth = 2, text = "Instrument Connections")
@@ -545,7 +610,7 @@ class FrontEnd():
         ttk.Label(
             connectFrame, text = "PLC:", font = ("Times New Roman", 10)).grid(
             column = 0, row = 2, padx = 5, sticky=W) 
-        self.instrSelectBox = ttk.Combobox(connectFrame, values = self.Vi.rm.list_resources(), width=40)
+        self.instrSelectBox = ttk.Combobox(connectFrame, values = self.Vi.rm.list_resources(query='?*'), width=40)
         self.instrSelectBox.grid(row = 0, column = 1, padx = 10 , pady = 5)
         self.motorSelectBox = ttk.Combobox(connectFrame, values = list(serial.tools.list_ports.comports()), width=40)
         self.motorSelectBox.grid(row = 1, column = 1, padx = 10, pady = 5)
@@ -798,9 +863,11 @@ class SpecAn(FrontEnd):
         spanFrame.grid(row=1, column=0, sticky=NSEW)
         self.spanEntry = ttk.Entry(spanFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.spanEntry.pack(expand=True, fill=BOTH)
-        self.spanSweptButton = ttk.Radiobutton(spanFrame, variable=tkSpanType, text = "Swept Span", value=1)
+        spanSubFrame = tk.Frame(spanFrame)
+        spanSubFrame.pack(expand=True, fill=BOTH)
+        self.spanSweptButton = ttk.Radiobutton(spanSubFrame, variable=tkSpanType, text = "Swept Span", value=1)
         self.spanSweptButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.spanZeroButton = ttk.Radiobutton(spanFrame, variable=tkSpanType, text = "Zero Span", value=0)
+        self.spanZeroButton = ttk.Radiobutton(spanSubFrame, variable=tkSpanType, text = "Zero Span", value=0)
         self.spanZeroButton.pack(anchor=W, expand=True, fill=BOTH)
         self.spanFullButton = ttk.Button(spanFrame, text = "Full Span")
         self.spanFullButton.pack(anchor=S, expand=True, fill=BOTH)
@@ -820,27 +887,33 @@ class SpecAn(FrontEnd):
         rbwFrame.grid(row=0, column=0, sticky=NSEW)
         self.rbwEntry = ttk.Entry(rbwFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.rbwEntry.pack(expand=True, fill=BOTH)
-        self.rbwAutoButton = ttk.Radiobutton(rbwFrame, variable=tkRbwType, text="Auto", value=AUTO)
+        rbwSubFrame = tk.Frame(rbwFrame)
+        rbwSubFrame.pack(expand=True, fill=BOTH)
+        self.rbwAutoButton = ttk.Radiobutton(rbwSubFrame, variable=tkRbwType, text="Auto", value=AUTO)
         self.rbwAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.rbwManButton = ttk.Radiobutton(rbwFrame, variable=tkRbwType, text="Manual", value=MANUAL)
+        self.rbwManButton = ttk.Radiobutton(rbwSubFrame, variable=tkRbwType, text="Manual", value=MANUAL)
         self.rbwManButton.pack(anchor=W, expand=True, fill=BOTH)
         
         vbwFrame = ttk.LabelFrame(self.tab2, text="Video BW")
         vbwFrame.grid(row=1, column=0, sticky=NSEW)
         self.vbwEntry = ttk.Entry(vbwFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.vbwEntry.pack(expand=True, fill=BOTH)
-        self.vbwAutoButton = ttk.Radiobutton(vbwFrame, variable=tkVbwType, text="Auto", value=AUTO)
+        vbwSubFrame = tk.Frame(vbwFrame)
+        vbwSubFrame.pack(expand=True, fill=BOTH)
+        self.vbwAutoButton = ttk.Radiobutton(vbwSubFrame, variable=tkVbwType, text="Auto", value=AUTO)
         self.vbwAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.vbwManButton = ttk.Radiobutton(vbwFrame, variable=tkVbwType, text="Manual", value=MANUAL)
+        self.vbwManButton = ttk.Radiobutton(vbwSubFrame, variable=tkVbwType, text="Manual", value=MANUAL)
         self.vbwManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         bwRatioFrame = ttk.LabelFrame(self.tab2, text="VBW:RBW")
         bwRatioFrame.grid(row=2, column=0, sticky=NSEW)
         self.bwRatioEntry = ttk.Entry(bwRatioFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.bwRatioEntry.pack(expand=True, fill=BOTH)
-        self.bwRatioAutoButton = ttk.Radiobutton(bwRatioFrame, variable=tkBwRatioType, text="Auto", value=AUTO)
+        bwRatioSubFrame = tk.Frame(bwRatioFrame)
+        bwRatioSubFrame.pack(expand=True, fill=BOTH)
+        self.bwRatioAutoButton = ttk.Radiobutton(bwRatioSubFrame, variable=tkBwRatioType, text="Auto", value=AUTO)
         self.bwRatioAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.bwRatioManButton = ttk.Radiobutton(bwRatioFrame, variable=tkBwRatioType, text="Manual", value=MANUAL)
+        self.bwRatioManButton = ttk.Radiobutton(bwRatioSubFrame, variable=tkBwRatioType, text="Manual", value=MANUAL)
         self.bwRatioManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         rbwFilterShapeFrame = ttk.LabelFrame(self.tab2, text="RBW Filter Shape")
@@ -869,17 +942,24 @@ class SpecAn(FrontEnd):
         self.numDivEntry = ttk.Entry(numDivFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.numDivEntry.pack(expand=True, fill=BOTH)
 
+        yRangeFrame = ttk.LabelFrame(self.tab3, text="Range")
+        yRangeFrame.grid(row=3, column=0, sticky=NSEW)
+        self.yRangeEntry = ttk.Entry(yRangeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
+        self.yRangeEntry.pack(expand=True, fill=BOTH)
+
         attenFrame = ttk.LabelFrame(self.tab3, text="Mech Atten")
-        attenFrame.grid(row=3, column=0, sticky=NSEW)
+        attenFrame.grid(row=4, column=0, sticky=NSEW)
         self.attenEntry = ttk.Entry(attenFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.attenEntry.pack(expand=True, fill=BOTH)
-        self.attenAutoButton = ttk.Radiobutton(attenFrame, variable=tkAttenType, text="Auto", value=AUTO)
+        attenSubFrame = tk.Frame(attenFrame)
+        attenSubFrame.pack(expand=True, fill=BOTH)
+        self.attenAutoButton = ttk.Radiobutton(attenSubFrame, variable=tkAttenType, text="Auto", value=AUTO)
         self.attenAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.attenManButton = ttk.Radiobutton(attenFrame, variable=tkAttenType, text="Manual", value=MANUAL)
+        self.attenManButton = ttk.Radiobutton(attenSubFrame, variable=tkAttenType, text="Manual", value=MANUAL)
         self.attenManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         unitPowerFrame = ttk.LabelFrame(self.tab3, text="Unit (Power)")
-        unitPowerFrame.grid(row=4, column=0, sticky=NSEW)
+        unitPowerFrame.grid(row=5, column=0, sticky=NSEW)
         self.unitPowerEntry = ttk.Entry(unitPowerFrame, state="disabled")
         self.unitPowerEntry.pack(expand=True, fill=BOTH)
 
@@ -893,9 +973,11 @@ class SpecAn(FrontEnd):
         sweepTimeFrame.grid(row=1, column=0, sticky=NSEW)
         self.sweepTimeEntry = ttk.Entry(sweepTimeFrame, validate="key", validatecommand=(isNumWrapper, '%P'))
         self.sweepTimeEntry.pack(expand=True, fill=BOTH)
-        self.sweepAutoButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Auto", value=AUTO)
+        sweepTimeSubFrame = tk.Frame(sweepTimeFrame)
+        sweepTimeSubFrame.pack(expand=True, fill=BOTH)
+        self.sweepAutoButton = ttk.Radiobutton(sweepTimeSubFrame, variable=tkSweepType, text="Auto", value=AUTO)
         self.sweepAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.sweepManButton = ttk.Radiobutton(sweepTimeFrame, variable=tkSweepType, text="Manual", value=MANUAL)
+        self.sweepManButton = ttk.Radiobutton(sweepTimeSubFrame, variable=tkSweepType, text="Manual", value=MANUAL)
         self.sweepManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # MEASUREMENT TAB 5 (TRACE)
@@ -919,9 +1001,11 @@ class SpecAn(FrontEnd):
         avgTypeFrame.grid(row=3, column=0, sticky=NSEW)
         self.avgTypeCombo = ttk.Combobox(avgTypeFrame, values=self.AVG_TYPE_VALUES)
         self.avgTypeCombo.pack(anchor=W, expand=True, fill=BOTH)
-        self.avgAutoButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Auto", value=AUTO)
+        avgTypeSubFrame = tk.Frame(avgTypeFrame)
+        avgTypeSubFrame.pack(expand=True, fill=BOTH)
+        self.avgAutoButton = ttk.Radiobutton(avgTypeSubFrame, variable=tkAvgType, text="Auto", value=AUTO)
         self.avgAutoButton.pack(anchor=W, expand=True, fill=BOTH)
-        self.avgManButton = ttk.Radiobutton(avgTypeFrame, variable=tkAvgType, text="Manual", value=MANUAL)
+        self.avgManButton = ttk.Radiobutton(avgTypeSubFrame, variable=tkAvgType, text="Manual", value=MANUAL)
         self.avgManButton.pack(anchor=W, expand=True, fill=BOTH)
 
         # SWEEP BUTTONS
@@ -952,20 +1036,21 @@ class SpecAn(FrontEnd):
         Ref.update(widget=self.refLevelEntry)
         NumDiv.update(widget=self.numDivEntry)
         YScale.update(widget=self.yScaleEntry)
+        YRange.update(widget=self.yRangeEntry)
         Atten.update(widget=self.attenEntry)
-        SpanType.update(widget=tkSpanType)
-        SweepType.update(widget=tkSweepType)
-        RbwType.update(widget=tkRbwType)
-        VbwType.update(widget=tkVbwType)
-        BwRatioType.update(widget=tkBwRatioType)
+        SpanType.update(widget=self.spanZeroButton, tkvar=tkSpanType)
+        SweepType.update(widget=self.sweepAutoButton, tkvar=tkSweepType)
+        RbwType.update(widget=self.rbwAutoButton, tkvar=tkRbwType)
+        VbwType.update(widget=self.vbwAutoButton, tkvar=tkVbwType)
+        BwRatioType.update(widget=self.bwRatioAutoButton, tkvar=tkBwRatioType)
         RbwFilterShape.update(widget=self.rbwFilterShapeCombo)
         RbwFilterType.update(widget=self.rbwFilterTypeCombo)
-        AttenType.update(widget=tkAttenType)
+        AttenType.update(widget=self.attenAutoButton, tkvar=tkAttenType)
         YAxisUnit.update(widget=self.unitPowerEntry)
         SweepPoints.update(widget=self.sweepPointsEntry)
         TraceType.update(widget=self.traceTypeCombo)
         AvgType.update(widget=self.avgTypeCombo)
-        AvgAutoMan.update(widget=tkAvgType)
+        AvgAutoMan.update(widget=self.avgAutoButton, tkvar=tkAvgType)
         AvgHoldCount.update(widget=self.avgCountEntry)
 
         # Generate thread to handle live data plot in background
@@ -986,6 +1071,7 @@ class SpecAn(FrontEnd):
         self.bwRatioEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, bwratio = self.bwRatioEntry.get()))
         self.refLevelEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, ref = self.refLevelEntry.get()))
         self.yScaleEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yscale = self.yScaleEntry.get()))
+        self.yRangeEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, yrange = self.yRangeEntry.get()))
         self.numDivEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, numdiv = self.numDivEntry.get()))
         self.attenEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, atten = self.attenEntry.get()))
         self.sweepPointsEntry.bind('<Return>', lambda event: self.setAnalyzerThreadHandler(event, sweeppoints = self.sweepPointsEntry.get()))
@@ -1069,18 +1155,27 @@ class SpecAn(FrontEnd):
         else:
             if tkSpanType.get() == 0:
                 xmin = 0
-                xmax = round(float(self.sweepTimeEntry.get()), 5)
+                xmax = round(SweepTime.getValue(float), 5)
                 self.ax.set_xlabel("Time (s)")
             else:
-                xmin = float(self.startFreqEntry.get())
-                xmax = float(self.stopFreqEntry.get())
+                xmin = StartFreq.getValue(float)
+                xmax = StopFreq.getValue(float)
                 self.ax.set_xlabel("Frequency (Hz)")
             self.ax.set_xlim(xmin, xmax)
+
         if 'ymin' in kwargs and 'ymax' in kwargs:
             self.ax.set_ylim(kwargs["ymin"], kwargs["ymax"])
         else:
-            ymax = float(self.refLevelEntry.get())
-            ymin = ymax - float(self.numDivEntry.get()) * float(self.yScaleEntry.get())
+            if not Ref.isEnabled:
+                ymax = 0
+                ymin = -100
+            else:
+                if NumDiv.isEnabled and YScale.isEnabled:
+                    ymax = Ref.getValue(float)
+                    ymin = ymax - NumDiv.getValue(float) * YScale.getValue(float)
+                elif YRange.isEnabled:
+                    ymax = Ref.getValue(float)
+                    ymin = ymax - YRange.getValue(float)
             self.ax.set_ylim(ymin, ymax)
         self.ax.margins(0, 0.05)
         self.ax.grid(visible=TRUE, which='major', axis='both', linestyle='-.')
@@ -1094,7 +1189,33 @@ class SpecAn(FrontEnd):
         thread = threading.Thread(target=self.setAnalyzerValue, kwargs=_dict)
         thread.start()
 
-    def setAnalyzerValue(self, centerfreq=None, span=None, startfreq=None, stopfreq=None, sweeptime=None, rbw=None, vbw=None, bwratio=None, ref=None, numdiv=None, yscale=None, atten=None, spantype=None, sweeptype=None, rbwtype=None, vbwtype=None, bwratiotype=None, rbwfiltershape=None, rbwfiltertype=None, attentype=None, sweeppoints=None, tracetype=None, avgcount=None, avgtype=None, avgautoman=None):
+    def setAnalyzerValue(self,
+    centerfreq=None,
+    span=None,
+    startfreq=None,
+    stopfreq=None,
+    sweeptime=None,
+    rbw=None,
+    vbw=None,
+    bwratio=None,
+    ref=None,
+    numdiv=None,
+    yscale=None,
+    yrange=None,
+    atten=None,
+    spantype=None,
+    sweeptype=None,
+    rbwtype=None,
+    vbwtype=None,
+    bwratiotype=None,
+    rbwfiltershape=None,
+    rbwfiltertype=None,
+    attentype=None,
+    sweeppoints=None,
+    tracetype=None,
+    avgcount=None,
+    avgtype=None,
+    avgautoman=None):
         """Issues command to spectrum analyzer with the value of kwarg as the argument and queries for widget values. If the value is None or if there are no kwargs, query the spectrum analyzer to set widget values instead.
         
         Args:
@@ -1109,6 +1230,7 @@ class SpecAn(FrontEnd):
             ref (float, optional): Reference level in dBm. Defaults to None.
             numdiv (float, optional): Number of yscale divisions. Defaults to None. Converted to int by device.
             yscale (float, optional): Scale per division in dB. Defaults to None.
+            yrange (float, optional): Total y-axis range. Defaults to None.
             atten (float, optional): Mechanical attenuation in dB. Defaults to None. Converted to int by device.
             spantype (bool, optional): 1 for swept span, 0 for zero span (time domain). Defaults to None.
             rbwtype (bool, optional): 1 for auto, 0 for manual. Defaults to None.
@@ -1138,6 +1260,7 @@ class SpecAn(FrontEnd):
         Ref.update(arg=ref)
         NumDiv.update(arg=numdiv)
         YScale.update(arg=yscale)
+        YRange.update(arg=yrange)
         Atten.update(arg=atten)
         SpanType.update(arg=spantype)
         SweepType.update(arg=sweeptype)
@@ -1163,24 +1286,49 @@ class SpecAn(FrontEnd):
             if _list[index].arg is not None:
                 _list.insert(0, _list.pop(index))
 
+        def _query(_parameter):
+            try:
+                buffer = self.Vi.openRsrc.query_ascii_values(f'{_parameter.command}?', converter='s') # Default converter is float
+                return buffer
+            except visa.errors.VisaIOError as e:
+                # If the query raises an error, try other commands in Parameter.commandList or disable the parameter
+                logging.verbose(f'Command {_parameter.command}? raised {type(e).__name__}: {e}')
+                if _parameter.required is True:
+                    raise e
+                if e.error_code == ViConstants.VI_ERROR_TMO:
+                    _parameter.disable()
+                    return e.error_code
+                else:
+                    raise e
+
 
         # EXECUTE COMMANDS
         logging.debug(f"setAnalyzerValue generated list of dictionaries '_list' with value {_list}")
         with visaLock:
             for parameter in _list:
-                if parameter.command is None:
+                if parameter.command is None or not parameter.isEnabled:
                     continue
                 # Issue command with argument
                 if parameter.arg is not None:
                     self.Vi.openRsrc.write(f'{parameter.command} {parameter.arg}')
-                # Set widgets without issuing a parameter to command
-                try:
-                    buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?') # Default converter is float
-                except:
-                    buffer = self.Vi.openRsrc.query_ascii_values(f'{parameter.command}?', converter='s')
-                logging.verbose(f"Command {parameter.command}? returned {buffer}")
-                parameter.update(value=buffer)
-                clearAndSetWidget(parameter.widget, buffer)
+
+                # Issue command as query
+                buffer = _query(parameter)
+                if buffer == ViConstants.VI_ERROR_TMO:
+                    if parameter.commandList:
+                        for newCommand in parameter.commandList[:]:
+                            parameter.renewCommand(newCommand)
+                            buffer = _query(parameter)
+                    else:
+                        continue
+                if not buffer == ViConstants.VI_ERROR_TMO:
+                    parameter.enable()
+                    logging.verbose(f"Command {parameter.command}? returned {buffer}")
+                    parameter.update(value=buffer)
+                    if parameter.tkvar:
+                        clearAndSetWidget(parameter.tkvar, buffer)
+                    else:
+                        clearAndSetWidget(parameter.widget, buffer)
         # Set plot limits
         with specPlotLock:
             self.setAnalyzerPlotLimits()
@@ -1195,9 +1343,9 @@ class SpecAn(FrontEnd):
                 visaLock.acquire()
                 self.Vi.resetAnalyzerState()
                 self.Vi.queryPowerUpErrors()
-                self.Vi.testBufferSize()
+                # self.Vi.testBufferSize()
                 # Set widget values
-                self.setAnalyzerValue()
+                # self.setAnalyzerValue()
                 visaLock.release()
             except Exception as e:
                 logging.error(f'{type(e).__name__}: {e}')
@@ -1225,6 +1373,8 @@ class SpecAn(FrontEnd):
                 self.idleButton.configure(state='disable')
                 self.loopButton.configure(state='enable')
                 self.toggleInputs(action = DISABLE)
+                for parameter in Parameter.instances:
+                    parameter.enable()
             case state.LOOP:
                 self.idleButton.configure(state='enable')
                 self.loopButton.configure(state='disable')
@@ -1975,7 +2125,7 @@ def openSaveDialog(type):
         if filename != '':
             Spec_An.fig.savefig(filename)
 
-def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
+def saveTrace(f=None, filePath=None, xdata=None, ydata=None, rcvrSuffix=''):
     """Saves trace as csv to the file object passed in f or the filePath string. If filePath points to an existing file, an iterating integer is appended to the file name until an unused name is found. This function is blocking and should only be called outside of the main thread.
 
     Args:
@@ -1994,7 +2144,7 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None):
         fileExists = True
         fileJoined = ''
         while fileExists:
-            fileName = Front_End.chainSelect + '-' + datetime.now().strftime('%Y-%m-%d') + '-' + str(x) +'.csv'
+            fileName = Front_End.chainSelect + rcvrSuffix + '-' + datetime.now().strftime('%Y-%m-%d') + '-' + str(x) +'.csv'
             fileJoined = os.path.join(filePath, fileName)
             fileExists = os.path.exists(fileJoined)
             x += 1
@@ -2433,7 +2583,11 @@ def generateWaterfallDialog():
         _timezone = tzCombo.get()
         _filetype = ftCombo.get()
         _dpi = int(dpiEntry.get())
-        args = (_fromPath, _toPath, _threshold, _timezone, _filetype, _dpi)
+        _moveFlag = _moveFlagVar.get()
+        _makeMatpl = _makeMatplVar.get()
+        _makePlotly = _makePlotlyVar.get()
+        _makeAvg = _makeAvgVar.get()
+        args = (_fromPath, _toPath, _threshold, _timezone, _filetype, _dpi, _moveFlag, _makeMatpl, _makePlotly, _makeAvg)
         DEF_WF_FROM_PATH = _fromPath
         DEF_WF_TO_PATH = _toPath
         DEF_WF_THRESHOLD = _threshold
@@ -2466,11 +2620,16 @@ def generateWaterfallDialog():
             return
         clearAndSetWidget(entry, dir)
 
+    _moveFlagVar = BooleanVar(value=True)
+    _makeMatplVar = BooleanVar(value=True)
+    _makePlotlyVar = BooleanVar(value=True)
+    _makeAvgVar = BooleanVar(value=True)
+
     _parent = Toplevel()
     _parent.title('Waterfall Plot Utility')
     _parent.resizable(True, True)
     _parent.attributes('-topmost', True)
-    configWidgetsFrame = ttk.Frame(_parent, width=30)
+    configWidgetsFrame = ttk.Frame(_parent, width=50)
     configWidgetsFrame.grid(row=0, column=0, padx=ROOT_PADX, pady=ROOT_PADY, sticky=NSEW)
     pathFrame = ttk.Frame(configWidgetsFrame)
     pathFrame.grid(row=0, column=0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
@@ -2529,14 +2688,24 @@ def generateWaterfallDialog():
     buttonFrame.grid(row = 4, column = 0, padx=ROOT_PADX, columnspan=2, sticky=NSEW)
     buttonFrame.columnconfigure(0, weight=1)
     buttonFrame.columnconfigure(1, weight=1)
+    
+    moveButton = ttk.Checkbutton(buttonFrame, text="Move csv when finished", variable=_moveFlagVar)
+    moveButton.grid(row=0, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    makePlotButton = ttk.Checkbutton(buttonFrame, text="Generate matplotlib plot", variable=_makeMatplVar)
+    makePlotButton.grid(row=1, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    makePlotlyButton = ttk.Checkbutton(buttonFrame, text="Generate plotly.js plot", variable=_makePlotlyVar)
+    makePlotlyButton.grid(row=2, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    makeAvgButton = ttk.Checkbutton(buttonFrame, text="Generate average trace", variable=_makeAvgVar)
+    makeAvgButton.grid(row=3, column=0, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+
     scheduleButton = ttk.Button(buttonFrame, text="Schedule Job", command=_scheduleWaterfall)
-    scheduleButton.grid(row=0, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    scheduleButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     clearButton = ttk.Button(buttonFrame, text="Clear Scheduler", command=_clearScheduler)
-    clearButton.grid(row=0, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    clearButton.grid(row=1, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     regenerateButton = ttk.Button(buttonFrame, text="Regenerate", command=lambda: _scheduleWaterfall(now=True, regenerate=True))
-    regenerateButton.grid(row=1, column=0, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    regenerateButton.grid(row=2, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
     nowButton = ttk.Button(buttonFrame, text="Run Immediately", command=lambda: _scheduleWaterfall(now=True))
-    nowButton.grid(row=1, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
+    nowButton.grid(row=3, column=1, columnspan=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 
 def openTrace():
     filepath = filedialog.askopenfilename(title="Select a file", filetypes=(('Comma separated variables', '*.csv'),))
@@ -2550,7 +2719,6 @@ def openTrace():
             _time = _dt.strftime("%H:%M:%S") + f' ({LOCAL_TIMEZONE})'
         except:
             _time = trace.header.loc['Time'].item()
-        plt.ion()
         fig, ax = plt.subplots()
         ax.plot(x, y)
         ax.set_xlabel(f'Frequency ({trace.header.loc['X Axis Units'].item()})')
@@ -2562,6 +2730,7 @@ def openTrace():
         ax.xaxis.set_major_formatter(EngFormatter(unit='Hz'))
         ax.set_title(f'{os.path.basename(filepath)}\n{_time}')
         fig.canvas.draw()
+        fig.show()
 
 evalCheckbutton.configure(command=checkbuttonStateHandler)
 execCheckbutton.configure(command=checkbuttonStateHandler)

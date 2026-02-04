@@ -518,7 +518,8 @@ class VisaIO():
         try:
             sessionOpen = self.openRsrc.session
         except:
-            logging.info('Session is not open.')
+            logging.info('Visa session is not open.')
+            return
         if sessionOpen:
             self.openRsrc.close()
 
