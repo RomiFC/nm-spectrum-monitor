@@ -2092,7 +2092,7 @@ def openSaveDialog(type):
     if type == 'trace':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Comma separated variables', '*.csv'), ('Text File (Tab delimited)', '*.txt'), ('All Files', '*.*')), defaultextension='.csv')
         if file is not None:
-            thread = threading.Thread(saveTrace, args=(file,))
+            thread = threading.Thread(target=saveTrace, args=(file,))
             thread.start()
     elif type == 'log':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Text Files', '*.txt'), ('All Files', '*.*')), defaultextension='.txt')
@@ -2159,7 +2159,7 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None, rcvrSuffix=''):
             buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
         f.write(buffer)
         f.close()
-        logging.info(f'File {fileName} saved to {filePath}')
+        logging.info(f'File {f.name} saved successfully')
     except Exception as e:
         logging.error(f'{type(e).__name__}: {e}')
         f.close()
