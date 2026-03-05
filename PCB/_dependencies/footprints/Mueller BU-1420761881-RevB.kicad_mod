@@ -92,8 +92,8 @@
       )
     )
   )
-  (model "C:/Users/remyv/Documents/KiCad/7.0/3dmodels/BU-1420761881.stp"
-    (offset (xyz -14.097 0 0))
+  (model "${KIPRJMOD}/../_dependencies/3dmodels/BU-1420761881.stp"
+    (offset (xyz -14.22 0 0.22))
     (scale (xyz 1 1 1))
     (rotate (xyz 0 0 180))
   )

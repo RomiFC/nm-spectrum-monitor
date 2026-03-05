@@ -629,8 +629,8 @@
         )
       )
     )
-    (model "C:/Users/remyv/Documents/KiCad/7.0/3dmodels/BU-1420761881.stp"
-      (offset (xyz -14.097 0 0))
+    (model "${KIPRJMOD}/../_dependencies/3dmodels/BU-1420761881.stp"
+      (offset (xyz -14.22 0 0.22))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 180))
     )
@@ -1793,7 +1793,7 @@
       (net 1 "GND") (pinfunction "GND_4") (pintype "passive") (tstamp 2b5df112-1ab6-4e21-994b-611751c24cec))
     (pad "17" smd rect (at 0 0 270) (size 0.99 2.01) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 1 "GND") (pinfunction "EP") (pintype "passive") (tstamp be76bd9a-a132-4b37-9939-d39045ec5762))
-    (model "PMA-183PLN+.stp"
+    (model "${KIPRJMOD}/../_dependencies/3dmodels/PMA-183PLN+.stp"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -2950,8 +2950,8 @@
         )
       )
     )
-    (model "C:/Users/remyv/Documents/KiCad/7.0/3dmodels/BU-1420761881.stp"
-      (offset (xyz -14.097 0 0))
+    (model "${KIPRJMOD}/../_dependencies/3dmodels/BU-1420761881.stp"
+      (offset (xyz -14.22 0 0.22))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 180))
     )

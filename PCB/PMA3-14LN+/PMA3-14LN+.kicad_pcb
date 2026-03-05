@@ -533,7 +533,7 @@
       (net 3 "GND") (pinfunction "NC_9") (pintype "passive") (tstamp 760547e2-5763-4d4c-af14-56fea52f38a4))
     (pad "13" smd rect (at 0 0) (size 1.45 1.45) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 3 "GND") (pinfunction "GND") (pintype "passive") (tstamp b777f923-0ced-447d-9a3a-752c2e608070))
-    (model "PMA3-14LN+.stp"
+    (model "${KIPRJMOD}/../_dependencies/3dmodels/PMA3-14LN+.stp"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -694,8 +694,8 @@
         )
       )
     )
-    (model "C:/Users/remyv/Documents/KiCad/7.0/3dmodels/BU-1420761881.stp"
-      (offset (xyz -14.097 0 0))
+    (model "${KIPRJMOD}/../_dependencies/3dmodels/BU-1420761881.stp"
+      (offset (xyz -14.22 0 0.22))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 180))
     )
@@ -8337,8 +8337,8 @@
         )
       )
     )
-    (model "C:/Users/remyv/Documents/KiCad/7.0/3dmodels/BU-1420761881.stp"
-      (offset (xyz -14.097 0 0))
+    (model "${KIPRJMOD}/../_dependencies/3dmodels/BU-1420761881.stp"
+      (offset (xyz -14.22 0 0.2))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 180))
     )

@@ -78,8 +78,8 @@
   (pad "2" smd rect (at -1.7272 -1.4672) (size 5.08 1.524) (layers "B.Cu" "B.Paste" "B.Mask") (tstamp dde5d3ac-196f-4638-9f02-8438c4f30b2e))
   (pad "2" smd rect (at -1.7272 1.4672) (size 5.08 1.524) (layers "B.Cu" "B.Paste" "B.Mask") (tstamp 811e893b-bd97-49a1-b095-ee9a8ace4f45))
   (pad "2" smd rect (at -1.7272 2.2292) (size 5.08 3.048) (layers "F.Cu" "F.Paste" "F.Mask") (tstamp 479ea275-711b-471a-b376-960e47da4db0))
-  (model "C:/Users/remyv/Documents/KiCad/7.0/3dmodels/BU-1420761881.stp"
-    (offset (xyz -14.097 0 0))
+  (model "${KIPRJMOD}/../_dependencies/3dmodels/BU-1420761881.stp"
+    (offset (xyz -14.22 0 0.22))
     (scale (xyz 1 1 1))
     (rotate (xyz 0 0 180))
   )
