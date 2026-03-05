@@ -481,7 +481,7 @@
   (symbol (lib_id "power:GND") (at 196.85 97.79 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 22bc6538-e395-4390-808e-369b4dbb159b)
-    (property "Reference" "#PWR?" (at 203.2 97.79 0)
+    (property "Reference" "#PWR016" (at 203.2 97.79 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Value" "GND" (at 200.66 97.79 90)
@@ -496,9 +496,6 @@
     (pin "1" (uuid 6505e30f-86a3-4acd-a777-b253af68582b))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "#PWR?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "#PWR016") (unit 1)
         )
@@ -512,7 +509,7 @@
   (symbol (lib_id "rf-dfs:C_Small") (at 190.5 83.82 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 2587ea3a-5d39-48fc-a72a-872718f6ab9e)
-    (property "Reference" "C?" (at 190.5063 77.47 90)
+    (property "Reference" "C2" (at 190.5063 77.47 90)
       (effects (font (size 1.27 1.27)))
     )
     (property "Value" "1uF" (at 190.5063 80.01 90)
@@ -524,13 +521,13 @@
     (property "Datasheet" "~" (at 190.5 83.82 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "https://www.digikey.com/en/products/detail/murata-electronics/GRM155R61E105KA12D/4905139" (at 190.5 83.82 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid 4ce53d6b-22cb-487f-b077-535205afe79b))
     (pin "2" (uuid 19aee9e6-2e36-47a5-9685-c9fc433b2a65))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "C?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "C2") (unit 1)
         )
@@ -544,7 +541,7 @@
   (symbol (lib_id "rf-dfs:L") (at 181.61 105.41 0) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 2bef77c0-72fa-45ff-89d6-14933df6690e)
-    (property "Reference" "L?" (at 182.88 104.14 0)
+    (property "Reference" "L1" (at 182.88 104.14 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
     (property "Value" "56nH" (at 182.88 106.68 0)
@@ -556,13 +553,13 @@
     (property "Datasheet" "~" (at 181.61 105.41 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "https://www.mouser.com/ProductDetail/Coilcraft/0402CS-56NXGLW?qs=JVZp5BaCFzgAnjagIlSj3A%3D%3D" (at 181.61 105.41 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid 21698ec3-9e44-4f48-9023-d9e72afc9070))
     (pin "2" (uuid c87f2cc3-a65c-4fb6-bd8a-f3dedf39c4da))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "L?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "L1") (unit 1)
         )
@@ -576,7 +573,7 @@
   (symbol (lib_id "rf-dfs:C_Small") (at 190.5 97.79 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 34109670-7907-474c-83c5-e8f949c3cd1b)
-    (property "Reference" "C?" (at 190.5063 91.44 90)
+    (property "Reference" "C3" (at 190.5063 91.44 90)
       (effects (font (size 1.27 1.27)))
     )
     (property "Value" "100pF" (at 190.5063 93.98 90)
@@ -588,13 +585,13 @@
     (property "Datasheet" "~" (at 190.5 97.79 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "https://www.digikey.com/en/products/detail/murata-electronics/GRM1555C1H101JA01D/3693829" (at 190.5 97.79 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid ae7f10c4-5cea-425f-8167-446a0b741026))
     (pin "2" (uuid da93060a-589a-46c6-a1b6-a22a199f69e5))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "C?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "C3") (unit 1)
         )
@@ -608,7 +605,7 @@
   (symbol (lib_name "PMA2-63LN+_1") (lib_id "rf-dfs:PMA2-63LN+_1") (at 124.46 105.41 0) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 486c9cfe-714a-40f0-befa-9d816e2b9b1a)
-    (property "Reference" "U?" (at 147.32 95.25 0)
+    (property "Reference" "U1" (at 147.32 95.25 0)
       (effects (font (size 1.524 1.524)))
     )
     (property "Value" "PMA2-63LN+" (at 147.32 97.79 0)
@@ -619,6 +616,9 @@
     )
     (property "Datasheet" "PMA2-63LN+" (at 124.46 105.41 0)
       (effects (font (size 1.27 1.27) italic) hide)
+    )
+    (property "Link" "https://www.minicircuits.com/WebStore/dashboard.html?model=PMA2-63LN%2B" (at 124.46 105.41 0)
+      (effects (font (size 1.27 1.27)) hide)
     )
     (pin "1" (uuid 84775aa3-a8e0-46c3-8abc-787b953ef14e))
     (pin "3" (uuid 0e0f0117-7bdb-4021-9fc7-7305647ba6af))
@@ -631,9 +631,6 @@
     (pin "9" (uuid ebdae88e-1fff-4ae7-8593-d379575d8528))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "U?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "U1") (unit 1)
         )
@@ -647,7 +644,7 @@
   (symbol (lib_id "rf-dfs:C_Small") (at 190.5 113.03 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 5fcbf39a-a3d2-43f2-9bb0-0aa7152a1205)
-    (property "Reference" "C?" (at 190.5063 106.68 90)
+    (property "Reference" "C4" (at 190.5063 106.68 90)
       (effects (font (size 1.27 1.27)))
     )
     (property "Value" "150pF" (at 190.5063 109.22 90)
@@ -659,13 +656,13 @@
     (property "Datasheet" "~" (at 190.5 113.03 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "https://www.digikey.com/en/products/detail/murata-electronics/GRM1555C1H151JA01J/2543888" (at 190.5 113.03 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid f3a469e3-dd5e-4155-8391-48e43227d3af))
     (pin "2" (uuid d34851ce-efa5-4222-987e-01d595717ac5))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "C?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "C4") (unit 1)
         )
@@ -679,7 +676,7 @@
   (symbol (lib_id "power:GND") (at 111.76 95.25 0) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 61f2ead6-5abc-4ed3-adbb-87ede6897482)
-    (property "Reference" "#PWR?" (at 111.76 101.6 0)
+    (property "Reference" "#PWR01" (at 111.76 101.6 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Value" "GND" (at 111.76 100.33 0)
@@ -694,9 +691,6 @@
     (pin "1" (uuid aab3965f-b0f1-4bea-bbe5-b32b2e5e9941))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "#PWR?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "#PWR01") (unit 1)
         )
@@ -710,7 +704,7 @@
   (symbol (lib_id "rf-dfs:C_Small") (at 111.76 110.49 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 70d88a39-afbe-4f98-bb2d-aee373b752d4)
-    (property "Reference" "C?" (at 111.7663 104.14 90)
+    (property "Reference" "C1" (at 111.7663 104.14 90)
       (effects (font (size 1.27 1.27)))
     )
     (property "Value" "150pF" (at 111.7663 106.68 90)
@@ -722,13 +716,13 @@
     (property "Datasheet" "~" (at 111.76 110.49 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "https://www.digikey.com/en/products/detail/murata-electronics/GRM1555C1H151JA01J/2543888" (at 111.76 110.49 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid b49a51f2-c2a8-422c-8147-050e06cbd08e))
     (pin "2" (uuid e5e6bb1c-8644-40d4-8f09-ab724eb75fcc))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "C?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "C1") (unit 1)
         )
@@ -754,6 +748,9 @@
     (property "Datasheet" "~" (at 127 82.55 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "" (at 121.92 82.55 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid ab662601-7680-44df-88f1-56770e24311c))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
@@ -770,7 +767,7 @@
   (symbol (lib_id "rf-dfs:R") (at 116.84 92.71 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp yes) (fields_autoplaced)
     (uuid a8da8503-99c4-4f68-881b-e657f445eda8)
-    (property "Reference" "R?" (at 116.84 86.36 90)
+    (property "Reference" "R1" (at 116.84 86.36 90)
       (effects (font (size 1.27 1.27)))
     )
     (property "Value" "100k" (at 116.84 88.9 90)
@@ -782,13 +779,13 @@
     (property "Datasheet" "~" (at 116.84 92.71 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "" (at 116.84 92.71 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid 03ec827d-5c36-45e9-8277-d6566898b424))
     (pin "2" (uuid fed04ffa-9877-4d83-a71f-3e9e53b4a68c))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "R?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "R1") (unit 1)
         )
@@ -802,7 +799,7 @@
   (symbol (lib_id "power:GND") (at 196.85 83.82 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid a9c2a804-71f1-499d-9798-83aad7239a3e)
-    (property "Reference" "#PWR?" (at 203.2 83.82 0)
+    (property "Reference" "#PWR06" (at 203.2 83.82 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Value" "GND" (at 200.66 83.82 90)
@@ -817,9 +814,6 @@
     (pin "1" (uuid 34e5a979-ca84-4384-a8aa-40d1c9224d96))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "#PWR?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "#PWR06") (unit 1)
         )
@@ -833,7 +827,7 @@
   (symbol (lib_id "power:GND") (at 121.92 115.57 0) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid d217ddfe-0574-4819-9666-dd7160a3620c)
-    (property "Reference" "#PWR?" (at 121.92 121.92 0)
+    (property "Reference" "#PWR05" (at 121.92 121.92 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Value" "GND" (at 121.92 120.65 0)
@@ -848,9 +842,6 @@
     (pin "1" (uuid 29ac8401-c91b-4317-99cd-e381ad74c7c4))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "#PWR?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "#PWR05") (unit 1)
         )
@@ -864,7 +855,7 @@
   (symbol (lib_id "rf-dfs:R") (at 127 92.71 90) (unit 1)
     (in_bom yes) (on_board yes) (dnp yes) (fields_autoplaced)
     (uuid eb4bae49-25b8-4a06-9ba2-afddbcbf3521)
-    (property "Reference" "R?" (at 127 86.36 90)
+    (property "Reference" "R3" (at 127 86.36 90)
       (effects (font (size 1.27 1.27)))
     )
     (property "Value" "100k" (at 127 88.9 90)
@@ -876,13 +867,13 @@
     (property "Datasheet" "~" (at 127 92.71 0)
       (effects (font (size 1.27 1.27)) hide)
     )
+    (property "Link" "" (at 127 92.71 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
     (pin "1" (uuid 6f20b8b4-7f96-4595-bcff-30f6f3b8c3bd))
     (pin "2" (uuid a6d13736-eea8-45f2-8051-2919ea3d825e))
     (instances
       (project "002.35.20.15.20-001-PCB-LNA"
-        (path "/a33db424-96f2-4015-ba95-8b9f2330ef17"
-          (reference "R?") (unit 1)
-        )
         (path "/a33db424-96f2-4015-ba95-8b9f2330ef17/9ff85c99-1040-4eb9-b5d8-3cc01caa0e77"
           (reference "R3") (unit 1)
         )
