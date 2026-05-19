@@ -16,6 +16,8 @@ from pathlib import Path
 defaultconfig = """
 [config]
 analyzer_refresh_seconds = 0.05
+def_analyzer_ymax = 0
+def_analyzer_ymin = -100
 motor_refresh_seconds = 0.2
 status_monitor_refresh_seconds = 0.2
 
@@ -93,6 +95,8 @@ class config:
         # REFRESH RATES
         self.IDLE_DELAY = 1.0
         self.ANALYZER_REFRESH_DELAY = cfg['config']['analyzer_refresh_seconds']
+        self.DEF_ANALYZER_YMAX = cfg['config']['def_analyzer_ymax']
+        self.DEF_ANALYZER_YMIN = cfg['config']['def_analyzer_ymin']
         self.MOTOR_LOOP_DELAY = cfg['config']['motor_refresh_seconds']
         self.STATUS_MONITOR_DELAY = cfg['config']['status_monitor_refresh_seconds']
 

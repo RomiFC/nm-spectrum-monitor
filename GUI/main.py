@@ -101,6 +101,9 @@ IDLE_DELAY = Config.IDLE_DELAY
 ANALYZER_REFRESH_DELAY = Config.ANALYZER_REFRESH_DELAY
 MOTOR_LOOP_DELAY = Config.MOTOR_LOOP_DELAY
 STATUS_MONITOR_DELAY = Config.STATUS_MONITOR_DELAY
+# Analyzer
+DEF_ANALYZER_YMAX = Config.DEF_ANALYZER_YMAX
+DEF_ANALYZER_YMIN = Config.DEF_ANALYZER_YMIN
 # DWF
 DEF_WF_FROM_PATH = Config.Waterfall.FROM_PATH
 DEF_WF_TO_PATH = Config.Waterfall.TO_PATH
@@ -238,7 +241,8 @@ AttenType       = Parameter('Auto Attenuation', ':SENS:POWER:ATT:AUTO', log=Fals
 XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
-TraceType       = Parameter('Trace Type', ':TRACE:TYPE')                                    # Keysight
+TraceType       = Parameter('Trace Type', ':TRACE:TYPE')                                    # Keysight N90xx
+TraceType.addCommand(':TRACE:MODE')                                                         # Keyisght E44xx
 TraceType.addCommand(':DISP:WIND1:SUBW:TRAC1:MODE')                                         # R&S
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
@@ -1145,16 +1149,17 @@ class SpecAn(FrontEnd):
         if 'ymin' in kwargs and 'ymax' in kwargs:
             self.ax.set_ylim(kwargs["ymin"], kwargs["ymax"])
         else:
-            if not Ref.isEnabled:
-                ymax = 0
-                ymin = -100
-            else:
+            if Ref.isEnabled:
+                ymax = Ref.getValue(float)
                 if NumDiv.isEnabled and YScale.isEnabled:
-                    ymax = Ref.getValue(float)
                     ymin = ymax - NumDiv.getValue(float) * YScale.getValue(float)
                 elif YRange.isEnabled:
-                    ymax = Ref.getValue(float)
                     ymin = ymax - YRange.getValue(float)
+                else:
+                    ymin = ymax - 100
+            else:
+                ymax = DEF_ANALYZER_YMAX
+                ymin = DEF_ANALYZER_YMIN
             self.ax.set_ylim(ymin, ymax)
         self.ax.margins(0, 0.05)
         self.ax.grid(visible=TRUE, which='major', axis='both', linestyle='-.')
@@ -1298,6 +1303,8 @@ class SpecAn(FrontEnd):
                         for newCommand in parameter.commandList[:]:
                             parameter.renewCommand(newCommand)
                             buffer = _query(parameter)
+                            if not buffer == ViConstants.VI_ERROR_TMO:
+                                break
                     else:
                         continue
                 if not buffer == ViConstants.VI_ERROR_TMO:
@@ -2394,9 +2401,9 @@ def generateAutoDialog():
     button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
     button3 = ttk.Button(presetsFrame, text='Average', command=lambda: _presetButtonHandler(automation.presets.average))
     button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
-    button4 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: _presetButtonHandler(automation.presets.maxhold))
+    button4 = ttk.Button(presetsFrame, text='Max Hold (N9040)', command=lambda: _presetButtonHandler(automation.presets.maxhold))
     button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
-    button5 = ttk.Button(presetsFrame, text='Min Hold', command=lambda: _presetButtonHandler(automation.presets.minhold))
+    button5 = ttk.Button(presetsFrame, text='Max Hold (E4407)', command=lambda: _presetButtonHandler(automation.presets.maxhold2))
     button5.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
 
     for i in range(7):
