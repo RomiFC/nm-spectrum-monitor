@@ -828,7 +828,7 @@
 				(justify left top)
 			)
 		)
-		(property "Datasheet" "https://www.minicircuits.com/pdfs/HFCG-880+.pdf"
+		(property "Datasheet" "https://www.minicircuits.com/WebStore/dashboard.html?model=HFCG-880%2B"
 			(at 34.29 -194.92 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1074,7 +1074,7 @@
 				(justify left top)
 			)
 		)
-		(property "Datasheet" "https://www.minicircuits.com/pdfs/HFCW-1042+.pdf"
+		(property "Datasheet" "https://www.minicircuits.com/WebStore/dashboard.html?model=HFCW-1042%2B"
 			(at 34.29 -194.92 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1814,7 +1814,7 @@
 				(justify left top)
 			)
 		)
-		(property "Datasheet" "https://componentsearchengine.com/Datasheets/1/LFCN-9170+.pdf"
+		(property "Datasheet" "https://www.minicircuits.com/WebStore/dashboard.html?model=LFCN-9170%2B"
 			(at 31.75 -182.22 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -2021,7 +2021,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.minicircuits.com/pdfs/LFCN-9170+.pdf"
+		(property "Datasheet" "https://www.minicircuits.com/WebStore/dashboard.html?model=LFCV-1552%2B"
 			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -4240,7 +4240,7 @@
 				(justify left top)
 			)
 		)
-		(property "Datasheet" "https://www.minicircuits.com/pdfs/PMA3-223GLN+.pdf"
+		(property "Datasheet" "https://www.minicircuits.com/WebStore/dashboard.html?model=PMA3-223GLN%2B"
 			(at 29.21 -187.3 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5330,7 +5330,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "YAT-1A+"
+		(property "Datasheet" "https://www.minicircuits.com/WebStore/dashboard.html?model=YAT-1A%2B"
 			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
