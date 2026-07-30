@@ -2491,7 +2491,7 @@ def generateDriftDialog():
         # Check if job is active
         _clearScheduler()
         # Add scheduled cron job
-        dwfScheduler.add_job(toDriftFormat, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=DRIFT_JOB_ID, name='Convert to DRIFT Format')
+        dwfScheduler.add_job(toDriftFormat, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=DRIFT_JOB_ID, name='Convert to DRIFT Format', misfire_grace_time=3600, coalesce=True)
 
     def _clearScheduler():
         if dwfScheduler.get_job(DRIFT_JOB_ID):
@@ -2595,7 +2595,7 @@ def generateWaterfallDialog():
         # Check if job is active
         _clearScheduler()
         # Add scheduled cron job
-        dwfScheduler.add_job(makeWaterfalls, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=WATERFALL_JOB_ID, name='Generate Waterfall Plot')
+        dwfScheduler.add_job(makeWaterfalls, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=WATERFALL_JOB_ID, name='Generate Waterfall Plot', misfire_grace_time=3600, misfire_coalesce=True)
 
     def _clearScheduler():
         if dwfScheduler.get_job(WATERFALL_JOB_ID):
