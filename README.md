@@ -72,6 +72,7 @@ pip install -r requirements.txt
 ## :mailbox: Authors
 
 - [Remy Nguyen](https://github.com/RomiFC)
+- [Natalie Ceonzo](https://github.com/nceonzo)
 - [Hina Suzuki](https://github.com/hina18201716)
 
 <picture>
