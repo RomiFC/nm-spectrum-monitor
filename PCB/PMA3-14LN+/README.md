@@ -1,5 +1,22 @@
 # PMA3-14LN+ Changelog
 
+## Revision C - 6/8/2026
+
+### Added
+
+- New thermal via grid underneath U2 for temperature management
+- Layer 2 DGS underneath L1,L2,C1,C2,C3,C4 as follows:
+    - Shunts L1,L2,C3,C4: 0.60mm x 0.1mm (trace pad)
+    - Series C1,C2: 1.5mm x 0.5mm
+
+### Changed
+
+- Changed mouting pad dimensions of L1,L2,C1,C2,C3,C4 to 0.56mm x 0.62mm rounded rectangle. Previous values:
+    - Shunts L1,L2: 0.37mm x 0.72mm rounded rectangle (trace pad) and 0.59mm x 0.64mm rectangle (bias pad)
+    - Series C1,C2: 0.56mm x 0.37mm rounded rectangle (both)
+    - Shunts C3,C4: 0.37mm x 0.72mm (trace pad) and 0.56mm x 0.62mm (bias pad)
+- Increased clearance around trace components from 0.2mm to 0.3mm
+
 ## Revision B - 10/24/2023
 
 ### Added
