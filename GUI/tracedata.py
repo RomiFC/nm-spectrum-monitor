@@ -69,6 +69,8 @@ class Trace:
                 self.polarization = 'LV'
                 self.scan_az = header.loc['Azimuth'].item()
                 self.scan_el = header.loc['Elevation'].item()
+            else:
+                self.polarization = 'LV'
             self.intensity_unit = 'dBm'
             self.scan_name = self.receiver + '-' + datetime.strftime("%Y-%m-%d") + '-D' + name.split('-')[4]
             self.scan_datetime = datetime.astimezone(timezone.utc).isoformat()  # drift datetime is in utc
@@ -81,17 +83,20 @@ class Trace:
             Returns:
                 DataFrame: pandas DataFrame in DRIFT-compatible format
             """
-            # if 'EMS' in self.receiver:
-            #     string = 'instrument,receiver,polarization,intensity_unit,scan_name,scan_datetime,frequency,intensity\n'
-            #     string = string + f'{self.instrument},{self.receiver},{self.polarization},{self.intensity_unit},{self.scan_name},{self.scan_datetime},{self.frequency[0]},{self.intensity[0]}\n'
-            #     for index in len(self.frequency - 1):
-            #         string = string + f',,,,,,{self.frequency[index+1]},{self.intensity[index+1]}'
-            # if 'DFS' in self.receiver:
-            #     string = 'instrument,receiver,polarization,intensity_unit,scan_name,scan_datetime,scan_az,scan_elfrequency,intensity\n'
-            #     string = string + f'{self.instrument},{self.receiver},{self.polarization},{self.intensity_unit},{self.scan_name},{self.scan_datetime},{self.scan_az},{self.scan_el},{self.frequency[0]},{self.intensity[0]}\n'
-            #     for index in len(self.frequency - 1):
-            #         string = string + f',,,,,,,,{self.frequency[index+1]},{self.intensity[index+1]}'
             if 'EMS' in self.receiver:
+                data = {
+                    'instrument': self.instrument,
+                    'receiver': self.receiver,
+                    'polarization': self.polarization,
+                    'intensity_unit': self.intensity_unit,
+                    'scan_name': self.scan_name,
+                    'scan_datetime': self.scan_datetime,
+                    'frequency': self.frequency,
+                    'intensity': self.intensity
+                }
+                series_data = {key: pd.Series(value) for key, value in data.items()}
+                df = pd.DataFrame(series_data)
+            else:
                 data = {
                     'instrument': self.instrument,
                     'receiver': self.receiver,

@@ -49,11 +49,6 @@ from tktimepicker import SpinTimePickerModern, constants
 from tktooltip import ToolTip
 
 # CONSTANTS
-IDLE_DELAY = 1.0
-ANALYZER_LOOP_DELAY = 0.5
-ANALYZER_REFRESH_DELAY = 0.05
-MOTOR_LOOP_DELAY = 0.5
-STATUS_MONITOR_DELAY = 0.2
 RETURN_ERROR = 1
 RETURN_SUCCESS = 0
 ENABLE = 1
@@ -79,15 +74,7 @@ SETTLING_ICON = '\u2325'
 CALIBRATING_ICON = '\U0001F527'
 MEASURING_ICON = '\u2221'
 LOCK_ICON = '\U0001F512'
-DEF_WF_FROM_PATH = os.getcwd()
-DEF_WF_TO_PATH = os.getcwd()
-DEF_WF_THRESHOLD = 100
-DEF_WF_TZ = 'US/Mountain'
-DEF_WF_FILETYPE = '.png'
-DEF_WF_DPI = 600
 WATERFALL_JOB_ID = 'waterfall'
-DEF_DRIFT_FROM_PATH = os.getcwd()
-DEF_DRIFT_TO_PATH = os.getcwd()
 DRIFT_JOB_ID = 'driftprocessing'
 LOCAL_TIMEZONE = get_localzone()
 
@@ -99,32 +86,6 @@ class state:
     AUTO = 3
     CLEANUP = 4
 
-# TOML CONFIGURATION
-try:
-    missingHeaders = []
-    missingKeys = []
-    file = open(Path(__file__).parent.absolute() / 'config.toml', "rb")
-    cfg = tomllib.load(file)
-
-    for header in defaultconfig.cfg:
-        if str(header) not in cfg:
-            missingHeaders.append(header)
-            continue
-        for key in defaultconfig.cfg[header]:
-            if str(key) not in cfg[header]:
-                missingKeys.append(header + '.' + key)
-except Exception as e:
-    cfg_error = e
-finally:
-    if missingHeaders or missingKeys or 'cfg_error' in locals():
-        cfg = defaultconfig.cfg
-
-# ENCODER CONSTANTS (HOME AND COUNTS PER DEGREE)
-X_HOME = cfg['calibration']['x_enc_home']
-Y_HOME = cfg['calibration']['y_enc_home']
-X_CPD = cfg['calibration']['x_countsperrotation'] / 360
-Y_CPD = cfg['calibration']['y_countsperrotation'] / 360
-
 # THREADING EVENTS
 visaLock = threading.RLock()        # For VISA resources
 motorLock = threading.RLock()       # For motor controller
@@ -132,13 +93,34 @@ plcLock = threading.RLock()         # For PLC
 specPlotLock = threading.RLock()    # For matplotlib spectrum plot
 bearingPlotLock = threading.RLock() # For matplotlib antenna direction plot
 
+# Import config
+cfg, missingHeaders, missingKeys, cfg_error = defaultconfig.importToml()
+Config = defaultconfig.config(cfg)
+# Delays
+IDLE_DELAY = Config.IDLE_DELAY
+ANALYZER_REFRESH_DELAY = Config.ANALYZER_REFRESH_DELAY
+MOTOR_LOOP_DELAY = Config.MOTOR_LOOP_DELAY
+STATUS_MONITOR_DELAY = Config.STATUS_MONITOR_DELAY
+# Analyzer
+DEF_ANALYZER_YMAX = Config.DEF_ANALYZER_YMAX
+DEF_ANALYZER_YMIN = Config.DEF_ANALYZER_YMIN
+# DWF
+DEF_WF_FROM_PATH = Config.Waterfall.FROM_PATH
+DEF_WF_TO_PATH = Config.Waterfall.TO_PATH
+DEF_WF_THRESHOLD = Config.Waterfall.THRESHOLD
+DEF_WF_TZ = Config.Waterfall.TZ
+DEF_WF_FILETYPE = Config.Waterfall.FILETYPE
+DEF_WF_DPI = Config.Waterfall.DPI
+DEF_DRIFT_FROM_PATH = Config.Drift.FROM_PATH
+DEF_DRIFT_TO_PATH = Config.Drift.TO_PATH
+
 # AUTOMATION PARAMETERS
 executors = {
-    'default': ThreadPoolExecutor(cfg['automation']['thread_max_workers']),
+    'default': ThreadPoolExecutor(Config.Automation.THREAD_MAX_WORKERS),
 }
 job_defaults = {
-    'coalesce': cfg['automation']['coalesce'],
-    'max_instances': cfg['automation']['job_max_instances']
+    'coalesce': Config.Automation.COALESCE,
+    'max_instances': Config.Automation.MAX_INSTANCES
 }
 automation = Automation(defaultstate=state.IDLE, executors=executors, job_defaults=job_defaults)
 
@@ -259,7 +241,8 @@ AttenType       = Parameter('Auto Attenuation', ':SENS:POWER:ATT:AUTO', log=Fals
 XAxisUnit       = Parameter('X Axis Units', None)
 XAxisUnit.update(value='Hz')
 YAxisUnit       = Parameter('Y Axis Units', ':UNIT:POW')
-TraceType       = Parameter('Trace Type', ':TRACE:TYPE')                                    # Keysight
+TraceType       = Parameter('Trace Type', ':TRACE:TYPE')                                    # Keysight N90xx
+TraceType.addCommand(':TRACE:MODE')                                                         # Keyisght E44xx
 TraceType.addCommand(':DISP:WIND1:SUBW:TRAC1:MODE')                                         # R&S
 AvgType         = Parameter('Average Type', ':SENS:AVER:TYPE')
 AvgAutoMan      = Parameter('Auto Average Type', ':SENS:AVER:TYPE:AUTO', log=False)
@@ -402,10 +385,10 @@ class FrontEnd():
         self.motor = Motor
         self.PLC = PLC
         # STYLING
-        self.SELECT_BACKGROUND = cfg['theme']['select_background']
+        self.SELECT_BACKGROUND = Config.Theme.SELECT_BACKGROUND
         self.DEFAULT_BACKGROUND = root.cget('bg')
-        CLOCK_FONT = cfg['theme']['clock_font']
-        FONT = cfg['theme']['font']
+        CLOCK_FONT = Config.Theme.CLOCK_FONT
+        FONT = Config.Theme.FONT
         FRAME_PADX = 5
         FRAME_PADY = 5
         BUTTON_PADX = 5
@@ -779,7 +762,7 @@ class SpecAn(FrontEnd):
         # STYLE
         s = ttk.Style()
         s.layout("Custom.TNotebook.Tab", [])   # clear the list containing notebook tab indexes
-        s.configure('Icon.TLabel', font=cfg['theme']['icon_font'], justify=CENTER)
+        s.configure('Icon.TLabel', font=Config.Theme.ICON_FONT, justify=CENTER)
         # VISA OBJECT
         self.Vi = Vi
         # PARENT
@@ -1166,16 +1149,17 @@ class SpecAn(FrontEnd):
         if 'ymin' in kwargs and 'ymax' in kwargs:
             self.ax.set_ylim(kwargs["ymin"], kwargs["ymax"])
         else:
-            if not Ref.isEnabled:
-                ymax = 0
-                ymin = -100
-            else:
+            if Ref.isEnabled:
+                ymax = Ref.getValue(float)
                 if NumDiv.isEnabled and YScale.isEnabled:
-                    ymax = Ref.getValue(float)
                     ymin = ymax - NumDiv.getValue(float) * YScale.getValue(float)
                 elif YRange.isEnabled:
-                    ymax = Ref.getValue(float)
                     ymin = ymax - YRange.getValue(float)
+                else:
+                    ymin = ymax - 100
+            else:
+                ymax = DEF_ANALYZER_YMAX
+                ymin = DEF_ANALYZER_YMIN
             self.ax.set_ylim(ymin, ymax)
         self.ax.margins(0, 0.05)
         self.ax.grid(visible=TRUE, which='major', axis='both', linestyle='-.')
@@ -1319,6 +1303,8 @@ class SpecAn(FrontEnd):
                         for newCommand in parameter.commandList[:]:
                             parameter.renewCommand(newCommand)
                             buffer = _query(parameter)
+                            if not buffer == ViConstants.VI_ERROR_TMO:
+                                break
                     else:
                         continue
                 if not buffer == ViConstants.VI_ERROR_TMO:
@@ -1831,8 +1817,8 @@ class AziElePlot(FrontEnd):
                         yEnc = int(response[0])
 
                         # Calculate position in degrees
-                        xPos = round((xEnc - X_HOME) / X_CPD, 4)
-                        yPos = round((yEnc - Y_HOME) / Y_CPD, 4)
+                        xPos = round((xEnc - Config.Calibration.X_HOME) / Config.Calibration.X_CPD, 4)
+                        yPos = round((yEnc - Config.Calibration.Y_HOME) / Config.Calibration.Y_CPD, 4)
                         # Draw arrows on respective axes
                         self.drawArrow(self.azAxis, xPos)
                         self.drawArrow(self.elAxis, yPos)
@@ -1978,7 +1964,7 @@ def statusMonitor(FrontEnd, Vi, Motor, PLC, Azi_Ele):
         time.sleep(STATUS_MONITOR_DELAY)
 
 # Root tkinter interface (contains Front_End and standard output console)
-root = ThemedTk(theme=cfg['theme']['ttk'])
+root = ThemedTk(theme=Config.Theme.TTK)
 root.title('New Mexico Spectrum Monitor Control')
 root.option_add('*TButton*takeFocus', 0)
 root.option_add('*TCombobox*takeFocus', 0)
@@ -1997,7 +1983,7 @@ dummy.destroy()
 stdioFrame = ttk.Frame(root)
 stdioFrame.grid(row=1, column=1, sticky=NSEW, padx=ROOT_PADX, pady=ROOT_PADY)
 stdioFrame.rowconfigure(0, weight=1)
-font=cfg['theme']['terminal_font']
+font=Config.Theme.TERMINAL_FONT
 for x in range(5):
     stdioFrame.columnconfigure(x, weight=0)
 stdioFrame.columnconfigure(1, weight=1)
@@ -2113,7 +2099,7 @@ def openSaveDialog(type):
     if type == 'trace':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Comma separated variables', '*.csv'), ('Text File (Tab delimited)', '*.txt'), ('All Files', '*.*')), defaultextension='.csv')
         if file is not None:
-            thread = threading.Thread(saveTrace, args=(file,))
+            thread = threading.Thread(target=saveTrace, args=(file,))
             thread.start()
     elif type == 'log':
         file = filedialog.asksaveasfile(initialdir = os.getcwd(), filetypes=(('Text Files', '*.txt'), ('All Files', '*.*')), defaultextension='.txt')
@@ -2180,6 +2166,7 @@ def saveTrace(f=None, filePath=None, xdata=None, ydata=None, rcvrSuffix=''):
             buffer = buffer + str(xdata[index]) + delimiter + str(ydata[index]) + '\n'
         f.write(buffer)
         f.close()
+        logging.info(f'File {f.name} saved successfully')
     except Exception as e:
         logging.error(f'{type(e).__name__}: {e}')
         f.close()
@@ -2414,9 +2401,9 @@ def generateAutoDialog():
     button2.grid(row=1, column=0, sticky=NSEW, padx=5, pady=5)
     button3 = ttk.Button(presetsFrame, text='Average', command=lambda: _presetButtonHandler(automation.presets.average))
     button3.grid(row=2, column=0, sticky=NSEW, padx=5, pady=5)
-    button4 = ttk.Button(presetsFrame, text='Max Hold', command=lambda: _presetButtonHandler(automation.presets.maxhold))
+    button4 = ttk.Button(presetsFrame, text='Max Hold (N9040)', command=lambda: _presetButtonHandler(automation.presets.maxhold))
     button4.grid(row=3, column=0, sticky=NSEW, padx=5, pady=5)
-    button5 = ttk.Button(presetsFrame, text='Min Hold', command=lambda: _presetButtonHandler(automation.presets.minhold))
+    button5 = ttk.Button(presetsFrame, text='Max Hold (E4407)', command=lambda: _presetButtonHandler(automation.presets.maxhold2))
     button5.grid(row=4, column=0, sticky=NSEW, padx=5, pady=5)
 
     for i in range(7):
@@ -2504,7 +2491,7 @@ def generateDriftDialog():
         # Check if job is active
         _clearScheduler()
         # Add scheduled cron job
-        dwfScheduler.add_job(toDriftFormat, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=DRIFT_JOB_ID, name='Convert to DRIFT Format')
+        dwfScheduler.add_job(toDriftFormat, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=DRIFT_JOB_ID, name='Convert to DRIFT Format', misfire_grace_time=3600, coalesce=True)
 
     def _clearScheduler():
         if dwfScheduler.get_job(DRIFT_JOB_ID):
@@ -2608,7 +2595,7 @@ def generateWaterfallDialog():
         # Check if job is active
         _clearScheduler()
         # Add scheduled cron job
-        dwfScheduler.add_job(makeWaterfalls, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=WATERFALL_JOB_ID, name='Generate Waterfall Plot')
+        dwfScheduler.add_job(makeWaterfalls, args=args, trigger=CronTrigger(hour=_jobTime.hour, minute=_jobTime.minute), id=WATERFALL_JOB_ID, name='Generate Waterfall Plot', misfire_grace_time=3600, misfire_coalesce=True)
 
     def _clearScheduler():
         if dwfScheduler.get_job(WATERFALL_JOB_ID):
@@ -2740,7 +2727,7 @@ sys.stdout.write = redirector
 sys.stderr.write = redirector
 
 # Check for initialization errors and print in the newly generated terminal window
-if 'cfg_error' in globals():
+if cfg_error:
     logging.warning(f'{type(cfg_error).__name__}: {cfg_error}')
 if missingHeaders:
     for header in missingHeaders:
@@ -2748,7 +2735,7 @@ if missingHeaders:
 if missingKeys:
     for key in missingKeys:
         logging.error(f'Missing key [{key}] in config.toml')
-if missingHeaders or missingKeys or 'cfg_error' in globals():
+if missingHeaders or missingKeys or cfg_error:
     logging.warning(f'Error loading config.toml, loading default configuration.')
 
 # Generate objects within root window
