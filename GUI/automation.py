@@ -105,9 +105,10 @@ def onSchedule():
     STOP_FREQ = 10e9
     SWEEP_POINTS = 5001
     RBW = 300e3
-    MAX_HOLD_TIME_SECONDS = 180
+    ATTEN = 0
+    MAX_HOLD_TIME_SECONDS = 270
 
-    Spec_An.setAnalyzerValue(startfreq=START_FREQ, stopfreq=STOP_FREQ, sweeppoints=SWEEP_POINTS, tracetype=2, rbw=RBW)
+    Spec_An.setAnalyzerValue(startfreq=START_FREQ, stopfreq=STOP_FREQ, sweeppoints=SWEEP_POINTS, tracetype=2, rbw=RBW, atten=ATTEN)
 
     with visaLock:
         Vi.openRsrc.write(":INIT:CONT OFF")
